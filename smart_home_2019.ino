@@ -23,9 +23,9 @@
 #pragma endregion
 
 #pragma region ForBlynk
-char auth[] = "64eb1e89df674887b797183a7d3150a5";
+char auth[] = "*********************";
 char ssid[] = "7SkyHome";
-char pass[] = "89191532537";
+char pass[] = "**********************";
 #pragma endregion
 
 #pragma region Sensors
