@@ -195,6 +195,7 @@ void setup()
 	xTaskCreate(run_blynk, "run_blynk", 2048, NULL, 1, NULL);
 	xTaskCreate(write_setting_to_pref, "write_setting_to_pref", 2048, NULL, 1, NULL);
 	xTaskCreate(count_heated_hours, "count_heated_hours", 2048, NULL, 1, NULL);
+	xTaskCreate(send_heated_hours_to_app, "send_heated_hours_to_app", 4096, NULL, 1, NULL);
 	#pragma endregion
 	
 }
