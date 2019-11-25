@@ -40,6 +40,23 @@ void warm_cool(float setPoint)
 	}   
 }
 
+void read_settings_from_pref()
+{
+	xSemaphoreTake(pref_mutex, portMAX_DELAY);
+	man_mode_set_p = pref.getInt("man_mode_set_p");
+	day_set_p = pref.getInt("day_set_p");    
+	night_set_p = pref.getInt("night_set_p");    
+	max_water_temp = pref.getInt("max_water_temp");    
+	min_water_temp = pref.getInt("min_water_temp");    
+	guard_mode = pref.getInt("guard_mode");    
+	panic_mode = pref.getInt("panic_mode");    
+	heating_mode = pref.getInt("heating_mode");    
+	out_lamp_mode = pref.getInt("out_lamp_mode");
+	Serial.println(String(man_mode_set_p) + ":" + String(day_set_p) + ":" + String(night_set_p) + ":" +  String(max_water_temp) + ":" +  String(min_water_temp) + ":" +  String(heating_mode));
+	xSemaphoreGive(pref_mutex);	
+}
+
+
 #pragma endregion
 
 #pragma region Tasks
@@ -348,6 +365,25 @@ void run_blynk(void *pvParameters)
 		Blynk.run();
 		xSemaphoreGive(wifi_mutex);
 		vTaskDelay(500 / portTICK_RATE_MS);
+	}
+}
+
+void write_setting_to_pref(void *pvParameters)
+{
+	while (true)
+	{
+		xSemaphoreTake(pref_mutex, portMAX_DELAY);
+		pref.putInt("man_mode_set_p", man_mode_set_p);
+		pref.putInt("day_set_p", day_set_p);    
+		pref.putInt("night_set_p", night_set_p);    
+		pref.putInt("max_water_temp", max_water_temp);    
+		pref.putInt("min_water_temp", min_water_temp);
+		pref.putInt("guard_mode", guard_mode); 
+		pref.putInt("panic_mode", panic_mode);    
+		pref.putInt("heating_mode", heating_mode);    
+		pref.putInt("out_lamp_mode", out_lamp_mode);                                     
+		xSemaphoreGive(pref_mutex);
+		vTaskDelay(30000 / portTICK_RATE_MS);
 	}
 }
 

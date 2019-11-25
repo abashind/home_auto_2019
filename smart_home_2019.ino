@@ -8,6 +8,7 @@
 #include <BlynkSimpleEsp32.h>
 #include <time.h>
 #include <HTTPClient.h>
+#include <Preferences.h>
 #pragma endregion
 
 #pragma region Pins
@@ -96,6 +97,8 @@ const char *ntpServer = "pool.ntp.org";
 
 #pragma endregion
 
+Preferences pref;
+
 int heating_mode = 1;
 bool heater_enabled;
 
@@ -103,10 +106,10 @@ int out_lamp_mode = 1;
 bool out_lamp_enabled;
 
 String current_time;
-int current_hour = 1;
-int current_day = 1;
-int current_month = 1;
-int current_year = 1;
+int current_hour;
+int current_day;
+int current_month;
+int current_year;
 
 TaskHandle_t slow_blink_handle;
 TaskHandle_t fast_blink_handle_1;
@@ -114,12 +117,16 @@ TaskHandle_t fast_blink_handle_2;
 TaskHandle_t beep_handle;
 
 SemaphoreHandle_t wifi_mutex;
+SemaphoreHandle_t pref_mutex;
 
 void setup()
 {
 	wifi_mutex = xSemaphoreCreateMutex();
+	pref_mutex = xSemaphoreCreateMutex();
 	
 	Serial.begin(115200);
+	
+	pref.begin("pref_1", false);
 	
 	xSemaphoreTake(wifi_mutex, portMAX_DELAY);
 	Blynk.begin(auth, ssid, pass);
@@ -130,6 +137,8 @@ void setup()
 	configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 	
 	get_time();
+	
+	read_settings_from_pref();
 	
 	#pragma region TempsBegin
 	temp_inside_sensor.begin();
@@ -156,6 +165,7 @@ void setup()
 	xTaskCreate(guard_control, "guard_control", 1024, NULL, 1, NULL);
 	xTaskCreate(send_data_to_blynk, "send_data_to_blynk", 10240, NULL, 1, NULL);
 	xTaskCreate(run_blynk, "run_blynk", 2048, NULL, 1, NULL);
+	xTaskCreate(write_setting_to_pref, "write_setting_to_pref", 2048, NULL, 1, NULL);
 	#pragma endregion
 	
 }
