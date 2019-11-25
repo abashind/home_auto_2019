@@ -387,4 +387,121 @@ void write_setting_to_pref(void *pvParameters)
 	}
 }
 
+void count_heated_hours(void *pvParameters)
+{
+	while (true)
+	{
+#pragma region Reset heated hours
+		
+		xSemaphoreTake(pref_mutex, portMAX_DELAY);
+		
+		auto pref_current_day = pref.getInt(current_dmy_keys[0]);
+		if (current_time != "TimeFail" && current_day != pref_current_day)
+		{
+			pref.putInt(current_dmy_keys[0], current_day);
+			pref.putInt(heated_hours_dmy_keys[0], 0);
+		}
+		
+		auto pref_current_month= pref.getInt(current_dmy_keys[1]);
+		if (current_time != "TimeFail" && current_month != pref_current_month)
+		{
+			pref.putInt(current_dmy_keys[1], current_month);
+			pref.putInt(heated_hours_dmy_keys[1], 0);
+		}
+		
+		auto pref_current_year = pref.getInt(current_dmy_keys[2]);
+		if (current_time != "TimeFail" && current_year != pref_current_year)
+		{
+			pref.putInt(current_dmy_keys[2], current_year);
+			pref.putInt(heated_hours_dmy_keys[2], 0);
+			for (auto &key_number : heated_hours_months_keys_numbers)
+			{
+				pref.putInt(key_number.first, 0);
+			}
+		}
+		
+		Serial.println(String(pref_current_day) + ":" +String(pref_current_month) + ":" + String(pref_current_year));
+		
+#pragma endregion
+		
+		if (heater_enabled)
+		{
+			for (auto key : heated_hours_dmy_keys)
+			{
+				auto value = pref.getInt(key);
+				value++;
+				pref.putInt(key, value);
+				Serial.println(value);
+			}
+			
+			for (auto key_number : heated_hours_months_keys_numbers)
+			{
+				if (current_month == key_number.second)
+				{
+					auto value = pref.getInt(key_number.first);
+					value++;
+					pref.putInt(key_number.first, value);
+					Serial.println(value);
+				}
+			}
+		}
+		
+		xSemaphoreGive(pref_mutex);
+		vTaskDelay(30000 / portTICK_RATE_MS);
+	}
+}
+
+//void send_heated_hours_to_app(void *pvParameters)
+//{
+//	while (true)
+//	{
+//		Serial.println("Start");
+//		xSemaphoreTake(wifi_mutex, portMAX_DELAY);
+//		xSemaphoreTake(nvs_mutex, portMAX_DELAY);
+//		
+//		String dmy_heated_hours;
+//		
+//		for (auto key : heated_hours_dmy_keys)
+//		{	
+//			Serial.println(key);
+//			uint32_t half_minutes;
+//			nvs_err = nvs_get_u32(nvs_storage, key, &half_minutes);
+//			if (nvs_err != ESP_OK)
+//			{
+//				nvs_set_u32(nvs_storage, key, 0);
+//				nvs_commit(nvs_storage);
+//			}
+//			float hours = half_minutes * 0.00833;
+//			dmy_heated_hours = dmy_heated_hours + String(hours) + ":";
+//		}
+//		//dmy_heated_hours.remove(dmy_heated_hours.length() - 1);
+//		
+//		Blynk.virtualWrite(pin_for_dmy_heated_hours, dmy_heated_hours);
+//		
+//		String months_heated_hours;
+//		for (auto key_number : heated_hours_months_keys_numbers)
+//		{
+//			Serial.println(key_number.first);
+//			uint32_t half_minutes;
+//			nvs_err = nvs_get_u32(nvs_storage, key_number.first, &half_minutes);
+//			if (nvs_err != ESP_OK)
+//			{
+//				nvs_set_u32(nvs_storage, key_number.first, 0);
+//				nvs_set_u32(nvs_storage, key_number.first, 0);
+//			}
+//			float hours = half_minutes * 0.00833;
+//			months_heated_hours = months_heated_hours + String(hours) + ":";
+//		}
+//		
+//		//months_heated_hours.remove(dmy_heated_hours.length() - 1);
+//		
+//		Blynk.virtualWrite(pin_for_months_heated_hours, months_heated_hours);
+//		
+//		xSemaphoreGive(nvs_mutex);
+//		xSemaphoreGive(wifi_mutex);
+//		Serial.println("Finish");
+//		vTaskDelay(30000 / portTICK_RATE_MS);
+//	}
+//}
+
 #pragma endregion
