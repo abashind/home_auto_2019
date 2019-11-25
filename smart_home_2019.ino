@@ -9,6 +9,7 @@
 #include <time.h>
 #include <HTTPClient.h>
 #include <Preferences.h>
+#include <map>
 #pragma endregion
 
 #pragma region Pins
@@ -118,6 +119,33 @@ TaskHandle_t beep_handle;
 
 SemaphoreHandle_t wifi_mutex;
 SemaphoreHandle_t pref_mutex;
+
+const char* heated_hours_dmy_keys[] = 
+{ 
+	"h_h_per_day",
+	"h_h_per_month",
+	"h_h_per_year"
+};
+
+const char* current_dmy_keys[] = 
+{ 
+	"current_day",
+	"current_month",
+	"current_may"
+};
+
+std::map<const char*, uint8_t> heated_hours_months_keys_numbers =
+{ 
+	{ "h_h_per_sep", 8 },
+	{ "h_h_per_oct", 9 },
+	{ "h_h_per_nov", 10 },
+	{ "h_h_per_dec", 11 },
+	{ "h_h_per_jan", 12 },
+	{ "h_h_per_feb", 1 },
+	{ "h_h_per_mar", 2 },
+	{ "h_h_per_apr", 3 },
+	{ "h_h_per_may", 4 }
+};
 
 void setup()
 {
