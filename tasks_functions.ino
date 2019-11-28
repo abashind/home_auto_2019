@@ -56,7 +56,6 @@ void read_settings_from_pref()
 	xSemaphoreGive(pref_mutex);	
 }
 
-
 #pragma endregion
 
 #pragma region Tasks
@@ -391,7 +390,7 @@ void count_heated_hours(void *pvParameters)
 {
 	while (true)
 	{
-#pragma region Reset heated hours
+		#pragma region Reset heated hours
 		
 		xSemaphoreTake(pref_mutex, portMAX_DELAY);
 		
@@ -422,7 +421,7 @@ void count_heated_hours(void *pvParameters)
 		
 		Serial.println(String(pref_current_day) + ":" +String(pref_current_month) + ":" + String(pref_current_year));
 		
-#pragma endregion
+		#pragma endregion
 		
 		if (heater_enabled)
 		{
@@ -486,6 +485,15 @@ void send_heated_hours_to_app(void *pvParameters)
 		xSemaphoreGive(pref_mutex);
 		xSemaphoreGive(wifi_mutex);
 		vTaskDelay(30000 / portTICK_RATE_MS);
+	}
+}
+
+void feed_watchdog(void *pvParameters)
+{
+	while (true)
+	{
+		timerWrite(timer, 0);
+		vTaskDelay(1000 / portTICK_RATE_MS);
 	}
 }
 

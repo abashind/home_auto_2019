@@ -120,6 +120,17 @@ TaskHandle_t beep_handle;
 SemaphoreHandle_t wifi_mutex;
 SemaphoreHandle_t pref_mutex;
 
+#pragma region For watchdog
+
+#define wdtTimeout 10000
+hw_timer_t *timer = NULL;
+
+void IRAM_ATTR restart() 
+{
+	esp_restart();
+}
+#pragma endregion
+
 const char* heated_hours_dmy_keys[] = 
 { 
 	"h_h_per_day",
@@ -196,8 +207,15 @@ void setup()
 	xTaskCreate(write_setting_to_pref, "write_setting_to_pref", 2048, NULL, 1, NULL);
 	xTaskCreate(count_heated_hours, "count_heated_hours", 2048, NULL, 1, NULL);
 	xTaskCreate(send_heated_hours_to_app, "send_heated_hours_to_app", 4096, NULL, 1, NULL);
+	xTaskCreate(feed_watchdog, "feed_watchdog", 1024, NULL, 1, NULL);
 	#pragma endregion
-	
+
+	#pragma region Watchdog init
+	timer = timerBegin(0, 80, true);                   
+	timerAttachInterrupt(timer, &restart, true);    
+	timerAlarmWrite(timer, wdtTimeout * 1000, false);  
+	timerAlarmEnable(timer);                           
+	#pragma endregion
 }
 
 #pragma region BLYNK_WRITE
