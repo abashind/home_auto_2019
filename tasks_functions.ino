@@ -15,8 +15,6 @@ void get_time()
 		current_time = String(timeinfo.tm_hour) + ":" + String(timeinfo.tm_min) + ":" + String(timeinfo.tm_sec);
 	}
 	xSemaphoreGive(wifi_mutex);
-		
-	Serial.println(current_time);
 }
 
 void warm_cool(float setPoint)
@@ -419,8 +417,6 @@ void count_heated_hours(void *pvParameters)
 			}
 		}
 		
-		Serial.println(String(pref_current_day) + ":" +String(pref_current_month) + ":" + String(pref_current_year));
-		
 		#pragma endregion
 		
 		if (heater_enabled)
@@ -467,7 +463,6 @@ void send_heated_hours_to_app(void *pvParameters)
 		}
 		dmy_heated_hours.remove(dmy_heated_hours.length() - 1);
 		
-		Serial.println(dmy_heated_hours);
 		Blynk.virtualWrite(pin_for_dmy_heated_hours, dmy_heated_hours);
 		
 		String months_heated_hours;
@@ -479,7 +474,6 @@ void send_heated_hours_to_app(void *pvParameters)
 		}
 		months_heated_hours.remove(months_heated_hours.length() - 1);
 		
-		Serial.println(months_heated_hours);
 		Blynk.virtualWrite(pin_for_months_heated_hours, months_heated_hours);
 		
 		xSemaphoreGive(pref_mutex);
@@ -493,6 +487,17 @@ void feed_watchdog(void *pvParameters)
 	while (true)
 	{
 		timerWrite(timer, 0);
+		vTaskDelay(1000 / portTICK_RATE_MS);
+	}
+}
+
+void heart_beat(void *pvParameters)
+{
+	while (true)
+	{
+		Serial.println(current_time + "This is just looooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooong string," +
+			"for longer UART led glow. Because there isn't builtin led on my esp32 board :) ");
+		
 		vTaskDelay(1000 / portTICK_RATE_MS);
 	}
 }

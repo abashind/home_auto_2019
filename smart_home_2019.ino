@@ -160,10 +160,17 @@ std::map<const char*, uint8_t> heated_hours_months_keys_numbers =
 
 void setup()
 {
+	#pragma region Watchdog init
+	timer = timerBegin(0, 80, true);                   
+	timerAttachInterrupt(timer, &restart, true);    
+	timerAlarmWrite(timer, wdtTimeout * 1000, false);  
+	timerAlarmEnable(timer);                           
+	#pragma endregion
+	
 	wifi_mutex = xSemaphoreCreateMutex();
 	pref_mutex = xSemaphoreCreateMutex();
 	
-	Serial.begin(115200);
+	Serial.begin(9600);
 	
 	pref.begin("pref_1", false);
 	
@@ -175,6 +182,7 @@ void setup()
 	
 	configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 	
+	delay(5000);
 	get_time();
 	
 	read_settings_from_pref();
@@ -208,14 +216,9 @@ void setup()
 	xTaskCreate(count_heated_hours, "count_heated_hours", 2048, NULL, 1, NULL);
 	xTaskCreate(send_heated_hours_to_app, "send_heated_hours_to_app", 4096, NULL, 1, NULL);
 	xTaskCreate(feed_watchdog, "feed_watchdog", 1024, NULL, 1, NULL);
+	xTaskCreate(heart_beat, "heart_beat", 1024, NULL, 1, NULL);
 	#pragma endregion
 
-	#pragma region Watchdog init
-	timer = timerBegin(0, 80, true);                   
-	timerAttachInterrupt(timer, &restart, true);    
-	timerAlarmWrite(timer, wdtTimeout * 1000, false);  
-	timerAlarmEnable(timer);                           
-	#pragma endregion
 }
 
 #pragma region BLYNK_WRITE
