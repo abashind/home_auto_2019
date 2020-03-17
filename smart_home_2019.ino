@@ -20,6 +20,7 @@
 #define siren_pin 16
 #define heater_pin 4
 #define pir_pin 23
+#define reset_pin 2
 #pragma endregion
 
 #pragma region ForBlynk
@@ -122,12 +123,12 @@ SemaphoreHandle_t pref_mutex;
 
 #pragma region For watchdog
 
-#define wdtTimeout 10000
+#define wdtTimeout 5000
 hw_timer_t *timer = NULL;
 
 void IRAM_ATTR restart() 
 {
-	esp_restart();
+	pinMode(reset_pin, OUTPUT);
 }
 #pragma endregion
 
@@ -182,7 +183,7 @@ void setup()
 	
 	configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 	
-	delay(5000);
+	delay(1000);
 	get_time();
 	
 	read_settings_from_pref();
