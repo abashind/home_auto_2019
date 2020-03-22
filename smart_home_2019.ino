@@ -45,9 +45,9 @@ float temp_water;
 #pragma endregion
 
 #pragma region Setpoints
-int man_mode_set_p = 23;               
-int day_set_p = 20;                     
-int night_set_p = 23;                   
+float man_mode_set_p = 23;               
+float day_set_p = 20;                     
+float night_set_p = 23;                   
 int max_water_temp = 60;
 int min_water_temp = 35;			  
 #pragma endregion
