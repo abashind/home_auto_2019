@@ -127,7 +127,7 @@ SemaphoreHandle_t pref_mutex;
 hw_timer_t *timer = NULL;
 
 void IRAM_ATTR restart() 
-{
+{	Serial.println("ESP froze, reboooooot :)");
 	pinMode(reset_pin, OUTPUT);
 }
 #pragma endregion
@@ -161,17 +161,11 @@ std::map<const char*, uint8_t> heated_hours_months_keys_numbers =
 
 void setup()
 {
-	#pragma region Watchdog init
-	timer = timerBegin(0, 80, true);                   
-	timerAttachInterrupt(timer, &restart, true);    
-	timerAlarmWrite(timer, wdtTimeout * 1000, false);  
-	timerAlarmEnable(timer);                           
-	#pragma endregion
+	Serial.begin(9600);
+	Serial.println("Setup start...");
 	
 	wifi_mutex = xSemaphoreCreateMutex();
 	pref_mutex = xSemaphoreCreateMutex();
-	
-	Serial.begin(9600);
 	
 	pref.begin("pref_1", false);
 	
@@ -202,6 +196,13 @@ void setup()
 	pinMode(pir_pin, INPUT_PULLDOWN);
 	#pragma endregion
 
+#pragma region Watchdog init
+	timer = timerBegin(0, 80, true);                   
+	timerAttachInterrupt(timer, &restart, true);    
+	timerAlarmWrite(timer, wdtTimeout * 1000, false);  
+	timerAlarmEnable(timer);                           
+#pragma endregion
+	
 	#pragma region TaskCreate
 	xTaskCreate(get_temps, "get_temps", 2048, NULL, 1, NULL);
 	xTaskCreate(get_time_task, "get_time_task", 10240, NULL, 1, NULL);

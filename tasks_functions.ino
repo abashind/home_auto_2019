@@ -359,6 +359,11 @@ void run_blynk(void *pvParameters)
 	while (true)
 	{
 		xSemaphoreTake(wifi_mutex, portMAX_DELAY);
+		if (WiFi.status() != WL_CONNECTED) 
+		{
+			Serial.println("WiFi is not connected, trying to establish connection...");
+			Blynk.connectWiFi(ssid, pass);
+		}
 		Blynk.run();
 		xSemaphoreGive(wifi_mutex);
 		vTaskDelay(500 / portTICK_RATE_MS);
@@ -495,7 +500,7 @@ void heart_beat(void *pvParameters)
 {
 	while (true)
 	{
-		Serial.println(current_time + "This is just looooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooong string," +
+		Serial.println(current_time + ".  This is just looooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooong string," +
 			"for longer UART led glow. Because there isn't builtin led on my esp32 board :) ");
 		
 		vTaskDelay(1000 / portTICK_RATE_MS);
