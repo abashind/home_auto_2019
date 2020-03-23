@@ -34,7 +34,7 @@ void begin(const char* auth,
 	    }
     }
 	
-	    void connectWiFi(const char* ssid, const char* pass)
+void connectWiFi(const char* ssid, const char* pass)
     {
         BLYNK_LOG2(BLYNK_F("Connecting to "), ssid);
         WiFi.mode(WIFI_STA);
