@@ -128,7 +128,7 @@ SemaphoreHandle_t pref_mutex;
 hw_timer_t *timer = NULL;
 
 void IRAM_ATTR restart() 
-{	Serial.println("ESP froze, reboooooot :)");
+{
 	pinMode(reset_pin, OUTPUT);
 }
 #pragma endregion
@@ -220,6 +220,7 @@ void setup()
 	xTaskCreate(send_heated_hours_to_app, "send_heated_hours_to_app", 4096, NULL, 1, NULL);
 	xTaskCreate(feed_watchdog, "feed_watchdog", 1024, NULL, 1, NULL);
 	xTaskCreate(heart_beat, "heart_beat", 1024, NULL, 1, NULL);
+	xTaskCreate(restart_if_temp_sensors_have_frozen, "restart_if_temp_sensors_have_frozen", 2048, NULL, 1, NULL);
 	#pragma endregion
 
 }

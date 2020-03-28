@@ -84,6 +84,35 @@ void get_temps(void *pvParameters)
 	}
 }
 
+void restart_if_temp_sensors_have_frozen(void *pvParameters)
+{	
+	float _temp_inside;
+	float _temp_outside;
+	float _temp_water;
+	
+	while (true)
+	{
+		for (int i = 0; i < 5; i++)
+		{
+			if (_temp_inside == temp_inside || _temp_outside == temp_outside || _temp_water == temp_water)
+			{
+				Serial.println("One of temp sensors has been freezing for " + String(i) + " minutes...");
+				vTaskDelay(60000 / portTICK_RATE_MS);
+				if (i != 4) continue;
+			}
+			else break;
+			
+			restart();
+		}
+		
+		_temp_inside = temp_inside;
+		_temp_outside = temp_outside;
+		_temp_water = temp_water;
+		
+		vTaskDelay(30000 / portTICK_RATE_MS); 
+	}
+}
+
 void get_time_task(void *pvParameters)
 {
 	while (true)
