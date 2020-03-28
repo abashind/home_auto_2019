@@ -96,6 +96,7 @@ const char *ntpServer = "pool.ntp.org";
 #define pin_for_months_heated_hours 14
 #define pin_pir_move 24
 #define pin_guard_mode 25
+#define pin_restart 26
 
 #pragma endregion
 
@@ -276,6 +277,12 @@ BLYNK_WRITE(pin_out_lamp_mode)
 BLYNK_WRITE(pin_guard_mode)
 {
 	guard_mode = param.asInt();
+}
+
+BLYNK_WRITE(pin_restart)
+{
+	int restart_signal = param.asInt();
+	if (restart_signal == 1) restart();
 }
 
 BLYNK_CONNECTED()
