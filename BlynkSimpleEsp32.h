@@ -9,7 +9,7 @@
  Internet and Blynk servers.
  You have to replace original methods by these methods or put these methods near original and invoke them.
  But you may need to restore WiFi connection when WiFi will be ok. It turned out that Blynk.run() doesn't do it but you can
- see who I solved this issue in file tasks_functions.ino of this project. Find run_blynk method. 
+ see how I solved this issue in file tasks_functions.ino of this project. Find run_blynk method. 
  */
 
 void begin(const char* auth,
@@ -34,7 +34,7 @@ void begin(const char* auth,
 	    }
     }
 	
-	    void connectWiFi(const char* ssid, const char* pass)
+void connectWiFi(const char* ssid, const char* pass)
     {
         BLYNK_LOG2(BLYNK_F("Connecting to "), ssid);
         WiFi.mode(WIFI_STA);
