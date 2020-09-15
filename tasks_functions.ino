@@ -220,7 +220,29 @@ void porch_lamps_control(void *pvParameters)
 	}
 }
 
-void outside_lamp_blinks(void *pvParameters)
+void backside_lamps_control(void *pvParameters)
+{
+	while (true)
+	{
+		//If panic, outside lamp is managed from panic control()
+		if(panic_mode != 1) {}
+		//Outside lamp OFF
+		else if(backside_lamps_mode == 1)
+		{
+			digitalWrite(backside_lamps_pin, LOW);
+			backside_lamps_enabled = false;
+		}
+		//Outside lamp ON
+		else if(porch_lamps_mode == 2)
+		{
+			digitalWrite(backside_lamps_pin, HIGH);
+			backside_lamps_enabled = true;
+		}
+		vTaskDelay(1000 / portTICK_RATE_MS);
+	}
+}
+
+void lamps_blink(void *pvParameters)
 {
 	int interval = (int) pvParameters;
 	
@@ -236,6 +258,18 @@ void outside_lamp_blinks(void *pvParameters)
 			digitalWrite(porch_lamps_pin, HIGH);
 			porch_lamps_enabled = true;
 		}
+		
+		if (backside_lamps_enabled)
+		{
+			digitalWrite(backside_lamps_pin, LOW);
+			backside_lamps_enabled = false;
+		}
+		else
+		{
+			digitalWrite(backside_lamps_pin, HIGH);
+			backside_lamps_enabled = true;
+		}
+		
 		vTaskDelay(interval / portTICK_RATE_MS);
 	}
 }
@@ -266,11 +300,11 @@ void panic_control(void *pvParameters)
 			digitalWrite(siren_pin, HIGH);
 			siren_enabled = false; 
 		}
-		//Outside lamp blinks
+		//Outside lamps blink
 		if(panic_mode == 2)
 		{
 			if ((slow_blink_handle) == NULL)
-				xTaskCreate(outside_lamp_blinks, "outside_lamp_blynk", 10000, (void *)1000, 1, &slow_blink_handle);
+				xTaskCreate(lamps_blink, "lamps_blink", 10000, (void *)1000, 1, &slow_blink_handle);
 			digitalWrite(siren_pin, HIGH);
 			siren_enabled = false; 
 		}
@@ -279,11 +313,11 @@ void panic_control(void *pvParameters)
 			vTaskDelete(slow_blink_handle);
 			slow_blink_handle = NULL;
 		}
-		//Siren beeps, outside lamp works like a strobe
+		//Siren beeps, outside lamps work like a strobe
 		if(panic_mode == 3)
 		{
 			if (fast_blink_handle_1 == NULL)
-				xTaskCreate(outside_lamp_blinks, "outside_lamp_blynk", 10000, (void *)166, 1, &fast_blink_handle_1); 
+				xTaskCreate(lamps_blink, "lamps_blink", 10000, (void *)166, 1, &fast_blink_handle_1); 
 		
 			if (beep_handle == NULL)
 				xTaskCreate(siren_beeps, "siren_beeps", 10000, NULL, 1, &beep_handle);
@@ -301,11 +335,11 @@ void panic_control(void *pvParameters)
 				beep_handle = NULL;
 			}
 		}
-		//Full panic
+		//Full panic.
 		if(panic_mode == 4)
 		{
 			if (fast_blink_handle_2 == NULL)
-				xTaskCreate(outside_lamp_blinks, "outside_lamp_blynk", 10000, (void *)166, 1, &fast_blink_handle_2); 
+				xTaskCreate(lamps_blink, "lamps_blink", 10000, (void *)166, 1, &fast_blink_handle_2); 
 			digitalWrite(siren_pin, LOW);
 			siren_enabled = true; 
 		}

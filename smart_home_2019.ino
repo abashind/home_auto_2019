@@ -17,6 +17,7 @@
 #define in_temp_pin 18
 #define water_temp_pin 5
 #define porch_lamps_pin 17
+#define backside_lamps_pin 20
 #define siren_pin 16
 #define heater_pin 4
 #define pir_pin 23
@@ -24,9 +25,9 @@
 #pragma endregion
 
 #pragma region ForBlynk
-char auth[] = "*********************";
+char auth[] = "enipoEUgTxuGbxVaon3jMxTEnDYDOcsL";
 char ssid[] = "7SkyHome";
-char pass[] = "**********************";
+char pass[] = "89191532537";
 #pragma endregion
 
 #pragma region Sensors
@@ -71,6 +72,15 @@ bool pir_move = false;
 int guard_mode = 1; 		  
 #pragma endregion
 
+#pragma region Lamps
+int porch_lamps_mode = 1;                           
+bool porch_lamps_enabled;
+
+int backside_lamps_mode = 1;
+bool backside_lamps_enabled;
+
+#pragma endregion
+
 #pragma region NTP
 const char *ntpServer = "pool.ntp.org";
 #define gmtOffset_sec 18000
@@ -95,6 +105,7 @@ const char *ntpServer = "pool.ntp.org";
 #define pin_for_dmy_heated_hours 13
 #define pin_for_months_heated_hours 14
 WidgetBridge bridge1(V15);
+#define pin_backside_lamps_mode 16
 #define pin_pir_move 24
 #define pin_guard_mode 25
 #define pin_restart 26
@@ -106,8 +117,7 @@ Preferences pref;
 int heating_mode = 1;
 bool heater_enabled;
 
-int porch_lamps_mode = 1;                           
-bool porch_lamps_enabled;
+
 
 String current_time;
 int current_hour;
@@ -212,6 +222,7 @@ void setup()
 	xTaskCreate(detect_pir_move, "detect_pir_move", 1024, NULL, 1, NULL);
 	xTaskCreate(heating_control, "heating_control", 1024, NULL, 1, NULL);
 	xTaskCreate(porch_lamps_control, "porch_lamps_control", 1024, NULL, 1, NULL);
+	xTaskCreate(backside_lamps_control, "backside_lamps_control", 1024, NULL, 1, NULL);
 	xTaskCreate(panic_control, "panic_control", 1024, NULL, 1, NULL);
 	xTaskCreate(guard_control, "guard_control", 8192, NULL, 1, NULL);
 	xTaskCreate(send_data_to_blynk, "send_data_to_blynk", 10240, NULL, 1, NULL);
@@ -275,6 +286,11 @@ BLYNK_WRITE(pin_panic_mode)
 BLYNK_WRITE(pin_porch_lamps_mode)
 {
 	porch_lamps_mode = param.asInt();
+}
+
+BLYNK_WRITE(pin_backside_lamps_mode)
+{
+	backside_lamps_mode = param.asInt();
 }
 
 BLYNK_WRITE(pin_guard_mode)
