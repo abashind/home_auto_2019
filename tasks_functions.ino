@@ -49,7 +49,7 @@ void read_settings_from_pref()
 	guard_mode = pref.getInt("guard_mode");    
 	panic_mode = pref.getInt("panic_mode");    
 	heating_mode = pref.getInt("heating_mode");    
-	out_lamp_mode = pref.getInt("out_lamp_mode");
+	porch_lamps_mode = pref.getInt("porch_lamps_mode");
 	Serial.println(String(man_mode_set_p) + ":" + String(day_set_p) + ":" + String(night_set_p) + ":" +  String(max_water_temp) + ":" +  String(min_water_temp) + ":" +  String(heating_mode));
 	xSemaphoreGive(pref_mutex);	
 }
@@ -94,9 +94,9 @@ void restart_if_temp_sensors_have_frozen(void *pvParameters)
 	{
 		for (int i = 0; i < 5; i++)
 		{
-			if (_temp_inside == temp_inside || _temp_outside == temp_outside || _temp_water == temp_water)
+			if (_temp_inside == temp_inside & _temp_outside == temp_outside & _temp_water == temp_water)
 			{
-				Serial.println("One of temp sensors has been freezing for " + String(i) + " minutes...");
+				Serial.println("Temp sensors has been freezing for " + String(i) + " minutes...");
 				vTaskDelay(60000 / portTICK_RATE_MS);
 				if (i != 4) continue;
 			}
@@ -198,23 +198,23 @@ void heating_control(void *pvParameters)
 	
 }
 
-void out_lamp_control(void *pvParameters)
+void porch_lamps_control(void *pvParameters)
 {
 	while (true)
 	{
 		//If panic, outside lamp is managed from panic control()
 		if(panic_mode != 1) {}
 		//Outside lamp OFF
-		else if(out_lamp_mode == 1)
+		else if(porch_lamps_mode == 1)
 		{
-			digitalWrite(out_lamp_pin, LOW);
-			out_lamp_enabled = false;
+			digitalWrite(porch_lamps_pin, LOW);
+			porch_lamps_enabled = false;
 		}
 		//Outside lamp ON
-		else if(out_lamp_mode == 2)
+		else if(porch_lamps_mode == 2)
 		{
-			digitalWrite(out_lamp_pin, HIGH);
-			out_lamp_enabled = true;
+			digitalWrite(porch_lamps_pin, HIGH);
+			porch_lamps_enabled = true;
 		}
 		vTaskDelay(1000 / portTICK_RATE_MS);
 	}
@@ -226,15 +226,15 @@ void outside_lamp_blinks(void *pvParameters)
 	
 	while (true)
 	{
-		if (out_lamp_enabled)
+		if (porch_lamps_enabled)
 		{
-			digitalWrite(out_lamp_pin, LOW);
-			out_lamp_enabled = false;
+			digitalWrite(porch_lamps_pin, LOW);
+			porch_lamps_enabled = false;
 		}
 		else
 		{
-			digitalWrite(out_lamp_pin, HIGH);
-			out_lamp_enabled = true;
+			digitalWrite(porch_lamps_pin, HIGH);
+			porch_lamps_enabled = true;
 		}
 		vTaskDelay(interval / portTICK_RATE_MS);
 	}
@@ -322,10 +322,7 @@ void guard_control(void *pvParameters)
 {
 	while (true)
 	{
-		//Guard OFF, manual panic control
-		if(guard_mode == 1){}
-
-		//Guard FULL
+		//Guard mode is FULL.
 		if(guard_mode == 2)
 		{
 			if (pir_move)
@@ -334,14 +331,18 @@ void guard_control(void *pvParameters)
 				panic_mode = 1;
 		}
 
-		//Guard semi silent
-		if(guard_mode == 3)
+		//Guard mode is semi silent.
+		else if(guard_mode == 3)
 		{
 			if (pir_move)
 				panic_mode = 3;
 			else
 				panic_mode = 1;
 		}
+		
+		xSemaphoreTake(wifi_mutex, portMAX_DELAY);
+		bridge1.virtualWrite(V2, panic_mode);
+		xSemaphoreGive(wifi_mutex);
 		
 		vTaskDelay(1000 / portTICK_RATE_MS);
 	}
@@ -363,10 +364,10 @@ void send_data_to_blynk(void *pvParameters)
 			Blynk.virtualWrite(pin_panic_mode, panic_mode);
 		if (panic_mode != 1)
 		{	
-			if (out_lamp_enabled)
-				Blynk.virtualWrite(pin_out_lamp_mode, 2);
+			if (porch_lamps_enabled)
+				Blynk.virtualWrite(pin_porch_lamps_mode, 2);
 			else
-				Blynk.virtualWrite(pin_out_lamp_mode, 1);
+				Blynk.virtualWrite(pin_porch_lamps_mode, 1);
 		}
 		Blynk.virtualWrite(pin_current_time, current_time);
 		Blynk.virtualWrite(pin_temp_inside, temp_inside);
@@ -390,7 +391,7 @@ void run_blynk(void *pvParameters)
 		xSemaphoreTake(wifi_mutex, portMAX_DELAY);
 		if (WiFi.status() != WL_CONNECTED) 
 		{
-			Serial.println("WiFi is not connected, trying to establish connection...");
+			Serial.println("WiFi is not connected, try to establish connection...");
 			Blynk.connectWiFi(ssid, pass);
 		}
 		Blynk.run();
@@ -412,7 +413,7 @@ void write_setting_to_pref(void *pvParameters)
 		pref.putInt("guard_mode", guard_mode); 
 		pref.putInt("panic_mode", panic_mode);    
 		pref.putInt("heating_mode", heating_mode);    
-		pref.putInt("out_lamp_mode", out_lamp_mode);                                     
+		pref.putInt("porch_lamps_mode", porch_lamps_mode);                                     
 		xSemaphoreGive(pref_mutex);
 		vTaskDelay(30000 / portTICK_RATE_MS);
 	}

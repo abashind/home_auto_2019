@@ -16,7 +16,7 @@
 #define out_temp_pin 19
 #define in_temp_pin 18
 #define water_temp_pin 5
-#define out_lamp_pin 17
+#define porch_lamps_pin 17
 #define siren_pin 16
 #define heater_pin 4
 #define pir_pin 23
@@ -91,9 +91,10 @@ const char *ntpServer = "pool.ntp.org";
 #define pin_temp_outside 8
 #define pin_max_water_temp 10
 #define pin_panic_mode 11
-#define pin_out_lamp_mode 12
+#define pin_porch_lamps_mode 12
 #define pin_for_dmy_heated_hours 13
 #define pin_for_months_heated_hours 14
+WidgetBridge bridge1(V15);
 #define pin_pir_move 24
 #define pin_guard_mode 25
 #define pin_restart 26
@@ -105,8 +106,8 @@ Preferences pref;
 int heating_mode = 1;
 bool heater_enabled;
 
-int out_lamp_mode = 1;                           
-bool out_lamp_enabled;
+int porch_lamps_mode = 1;                           
+bool porch_lamps_enabled;
 
 String current_time;
 int current_hour;
@@ -191,8 +192,8 @@ void setup()
 
 	#pragma region PinInit
 	pinMode(heater_pin, OUTPUT);
-	pinMode(out_lamp_pin, OUTPUT);
-	pinMode(out_lamp_pin, OUTPUT);
+	pinMode(porch_lamps_pin, OUTPUT);
+	pinMode(porch_lamps_pin, OUTPUT);
 	pinMode(siren_pin, OUTPUT);
 	pinMode(pir_pin, INPUT_PULLDOWN);
 	#pragma endregion
@@ -210,9 +211,9 @@ void setup()
 	xTaskCreate(calculate_water_temp, "calculate_water_temp", 2048, NULL, 1, NULL);
 	xTaskCreate(detect_pir_move, "detect_pir_move", 1024, NULL, 1, NULL);
 	xTaskCreate(heating_control, "heating_control", 1024, NULL, 1, NULL);
-	xTaskCreate(out_lamp_control, "light_control", 1024, NULL, 1, NULL);
+	xTaskCreate(porch_lamps_control, "porch_lamps_control", 1024, NULL, 1, NULL);
 	xTaskCreate(panic_control, "panic_control", 1024, NULL, 1, NULL);
-	xTaskCreate(guard_control, "guard_control", 1024, NULL, 1, NULL);
+	xTaskCreate(guard_control, "guard_control", 8192, NULL, 1, NULL);
 	xTaskCreate(send_data_to_blynk, "send_data_to_blynk", 10240, NULL, 1, NULL);
 	xTaskCreate(run_blynk, "run_blynk", 2048, NULL, 1, NULL);
 	xTaskCreate(write_setting_to_pref, "write_setting_to_pref", 2048, NULL, 1, NULL);
@@ -268,11 +269,12 @@ BLYNK_WRITE(pin_max_water_temp)
 BLYNK_WRITE(pin_panic_mode)
 {
 	panic_mode = param.asInt();
+	bridge1.virtualWrite(V2, panic_mode);
 }
 
-BLYNK_WRITE(pin_out_lamp_mode)
+BLYNK_WRITE(pin_porch_lamps_mode)
 {
-	out_lamp_mode = param.asInt();
+	porch_lamps_mode = param.asInt();
 }
 
 BLYNK_WRITE(pin_guard_mode)
@@ -289,6 +291,7 @@ BLYNK_WRITE(pin_restart)
 BLYNK_CONNECTED()
 {
 	Blynk.syncAll();
+	bridge1.setAuthToken("vxFa-4f0xhSnfX87x2mrsKtjtaLECdBW");
 }
 
 #pragma endregion
