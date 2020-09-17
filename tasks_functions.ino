@@ -51,6 +51,7 @@ void read_settings_from_pref()
 	heating_mode = pref.getInt("heating_mode");    
 	porch_lamps_mode = pref.getInt("porch_lamps_mode");
 	invasion_detected = pref.getBool("invasion_detected");
+	mp3_number = pref.getInt("mp3_number");
 	Serial.println(String(man_mode_set_p) + ":" + String(day_set_p) + ":" + String(night_set_p) + ":" +  String(max_water_temp) + ":" +  String(min_water_temp) + ":" +  String(heating_mode));
 	xSemaphoreGive(pref_mutex);	
 }
@@ -78,6 +79,8 @@ void reset_all_the_alarm_leds()
 	set_led_green(left_side_led_alarm);
 	
 	set_led_green(right_side_led_alarm);
+	
+	set_led_green(inside_led_alarm);
 }
 
 void send_panic_to_outdoor_esp32()
@@ -140,6 +143,24 @@ void send_to_app_invasion_notification()
 	xSemaphoreTake(wifi_mutex, portMAX_DELAY);
 	Blynk.notify("Invasion has been detected! Go to watch the cams!!!");
 	xSemaphoreGive(wifi_mutex);
+}
+
+void run_mp3_player()
+{
+	if (!mp3_player_works)
+	{
+		mp3_player.loop(mp3_number);
+		mp3_player_works = true;
+	}
+}
+
+void stop_mp3_player()
+{
+	if (mp3_player_works)
+	{
+		mp3_player.stop();
+		mp3_player_works = false;
+	}
 }
 
 #pragma endregion
@@ -364,33 +385,35 @@ void siren_beeps(void *pvParameters)
 
 void panic_control(void *pvParameters)
 {
+	
 	while (true)
 	{
 		//Not panic
 		if(panic_mode == 1)
 		{
 			digitalWrite(siren_pin, HIGH);
+			stop_mp3_player();
 		}
-		//Outside lamps blink
+		
+		//Outside lamps blink, 
 		if(panic_mode == 2)
 		{
-			if ((slow_blink_handle) == NULL)
-				xTaskCreate(lamps_blink, "lamps_blink", 10000, (void *)1000, 1, &slow_blink_handle);
+			if ((slow_blink_handle) == NULL) xTaskCreate(lamps_blink, "lamps_blink", 10000, (void *)1000, 1, &slow_blink_handle);
 			digitalWrite(siren_pin, HIGH);
+			run_mp3_player();
 		}
 		else if(slow_blink_handle != NULL)
 		{
 			vTaskDelete(slow_blink_handle);
 			slow_blink_handle = NULL;
 		}
+		
 		//Siren beeps, outside lamps work like a strobe
 		if(panic_mode == 3)
 		{
-			if (fast_blink_handle_1 == NULL)
-				xTaskCreate(lamps_blink, "lamps_blink", 10000, (void *)166, 1, &fast_blink_handle_1); 
-		
-			if (beep_handle == NULL)
-				xTaskCreate(siren_beeps, "siren_beeps", 10000, NULL, 1, &beep_handle);
+			if (fast_blink_handle_1 == NULL) xTaskCreate(lamps_blink, "lamps_blink", 10000, (void *)166, 1, &fast_blink_handle_1); 
+			if (beep_handle == NULL) xTaskCreate(siren_beeps, "siren_beeps", 10000, NULL, 1, &beep_handle);
+			run_mp3_player();
 		}
 		else 
 		{
@@ -405,12 +428,13 @@ void panic_control(void *pvParameters)
 				beep_handle = NULL;
 			}
 		}
+		
 		//Full panic.
 		if(panic_mode == 4)
 		{
-			if (fast_blink_handle_2 == NULL)
-				xTaskCreate(lamps_blink, "lamps_blink", 10000, (void *)166, 1, &fast_blink_handle_2); 
+			if (fast_blink_handle_2 == NULL) xTaskCreate(lamps_blink, "lamps_blink", 10000, (void *)166, 1, &fast_blink_handle_2); 
 			digitalWrite(siren_pin, LOW);
+			run_mp3_player();
 		}
 		else if(fast_blink_handle_2 != NULL)
 		{
@@ -430,12 +454,15 @@ void guard_control(void *pvParameters)
 		if (panic_mode != 1 && !invasion_detected)
 		{
 			if (reset_panic_timer_starts_with == 0) reset_panic_timer_starts_with = millis();
-			if (millis() - reset_panic_timer_starts_with > 400000)
+			if (millis() - reset_panic_timer_starts_with > how_long_panic_lasts)
 			{
 				panic_mode = 1;
 				write_to_pref_invasion_detected();
 				send_panic_to_outdoor_esp32();
 				reset_panic_timer_starts_with = 0;
+				xSemaphoreTake(wifi_mutex, portMAX_DELAY);
+				Blynk.virtualWrite(pin_panic_mode, panic_mode);
+				xSemaphoreGive(wifi_mutex);
 			}
 		}
 		
@@ -519,6 +546,7 @@ void write_setting_to_pref(void *pvParameters)
 		pref.putInt("panic_mode", panic_mode);    
 		pref.putInt("heating_mode", heating_mode);    
 		pref.putInt("porch_lamps_mode", porch_lamps_mode);
+		pref.putInt("mp3_number", mp3_number);
 		xSemaphoreGive(pref_mutex);
 		vTaskDelay(30000 / portTICK_RATE_MS);
 	}
@@ -635,8 +663,8 @@ void heart_beat(void *pvParameters)
 {
 	while (true)
 	{
-		Serial.println(current_time + ". Loooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooong.");
-		vTaskDelay(1000 / portTICK_RATE_MS);
+		Serial.println(current_time + ". Looooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooong.");
+		vTaskDelay(2000 / portTICK_RATE_MS);
 	}
 }
 
@@ -673,6 +701,5 @@ void send_signal_to_gate(void *pvParameters)
 		vTaskDelay(100 / portTICK_RATE_MS);
 	}
 }
-
 
 #pragma endregion

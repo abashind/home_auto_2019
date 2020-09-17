@@ -10,6 +10,8 @@
 #include <HTTPClient.h>
 #include <Preferences.h>
 #include <map>
+#include <DFRobotDFPlayerMini.h>
+#include <HardwareSerial.h>
 #pragma endregion
 
 #pragma region Pins
@@ -17,7 +19,7 @@
 #define heater_pin 4 
 #define water_temp_pin 5
 #define backside_lamps_pin 15 
-#define siren_pin 16 
+#define siren_pin 16
 #define porch_lamps_pin 17 
 #define in_temp_pin 27
 #define out_temp_pin 32
@@ -30,6 +32,9 @@
 #define left_side_alarm_pin 14
 #define right_side_alarm_pin 18
 #define inside_alarm_pin 19
+
+#define mp3_serial_rx_pin 25
+#define mp3_serial_tx_pin 26
 #pragma endregion
 
 #pragma region ForBlynk
@@ -97,6 +102,12 @@ bool inside_alarm = false;
 
 unsigned long reset_panic_timer_starts_with = 0;
 
+unsigned long how_long_panic_lasts = 400000;
+
+int mp3_number = 1;
+
+bool mp3_player_works = false;
+
 #pragma endregion
 
 #pragma region Lamps
@@ -152,6 +163,9 @@ WidgetBridge bridge1(V15);
 
 #define vpin_protect_inside 32
 #define vpin_inside_alarm 33
+
+#define vpin_how_long_panic_lasts 34
+#define vpin_mp3_number 35
 #pragma endregion
 
 #pragma region Virtaul leds
@@ -165,6 +179,8 @@ WidgetLED inside_led_alarm(vpin_inside_alarm);
 #pragma endregion
 
 Preferences pref;
+HardwareSerial mp3_serial(2);
+DFRobotDFPlayerMini mp3_player;
 
 int heating_mode = 1;
 bool heater_enabled;
@@ -224,6 +240,15 @@ std::map<const char*, uint8_t> heated_hours_months_keys_numbers =
 void setup()
 {
 	Serial.begin(9600);
+	
+	mp3_serial.begin(9600, SERIAL_8N1, mp3_serial_rx_pin, mp3_serial_tx_pin);
+	Serial.print("Mp3 player started with result: ");
+	Serial.print(mp3_player.begin(mp3_serial));
+	mp3_player.setTimeOut(500);
+	mp3_player.volume(26);
+	mp3_player.EQ(DFPLAYER_EQ_BASS);
+	mp3_player.outputDevice(DFPLAYER_DEVICE_SD);
+	
 	Serial.println("Setup start...");
 	
 	wifi_mutex = xSemaphoreCreateMutex();
@@ -407,6 +432,16 @@ BLYNK_WRITE(vpin_reset_all_the_alarm_leds)
 {
 	if (param.asInt())
 		reset_all_the_alarm_leds();
+}
+
+BLYNK_WRITE(vpin_how_long_panic_lasts)
+{
+	how_long_panic_lasts = param.asInt() * 60000;
+}
+
+BLYNK_WRITE(vpin_mp3_number)
+{
+	mp3_number = param.asInt();
 }
 
 BLYNK_CONNECTED()
