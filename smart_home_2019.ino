@@ -13,15 +13,23 @@
 #pragma endregion
 
 #pragma region Pins
-#define out_temp_pin 19
-#define in_temp_pin 18
-#define water_temp_pin 5
-#define porch_lamps_pin 17
-#define backside_lamps_pin 20
-#define siren_pin 16
-#define heater_pin 4
-#define pir_pin 23
 #define reset_pin 2
+#define heater_pin 4 
+#define water_temp_pin 5
+#define backside_lamps_pin 15 
+#define siren_pin 16 
+#define porch_lamps_pin 17 
+#define in_temp_pin 27
+#define out_temp_pin 32
+#define outdoor_control_pin 12
+#define gate_control_pin 13
+
+#define porch_alarm_pin 23
+#define front_side_alarm_pin 21
+#define back_side_alarm_pin 22
+#define left_side_alarm_pin 14
+#define right_side_alarm_pin 18
+#define inside_alarm_pin 19
 #pragma endregion
 
 #pragma region ForBlynk
@@ -67,9 +75,28 @@ int half_water_dzone = water_dzone / 2;
 
 #pragma region Security
 int panic_mode = 1;
-bool siren_enabled = false;
-bool pir_move = false;
-int guard_mode = 1; 		  
+
+int guard_mode = 1;
+bool gate_signal = false;
+bool outdoor_signal = false;
+
+bool invasion_detected = false;
+bool protect_front_side = true;
+bool protect_back_side = true;
+bool protect_left_side = true;
+bool protect_right_side = true;
+bool protect_porch = true;
+bool protect_inside = true;
+
+bool front_side_alarm = false;
+bool back_side_alarm = false;
+bool left_side_alarm = false;
+bool right_side_alarm = false;
+bool porch_alarm = false;
+bool inside_alarm = false;
+
+unsigned long reset_panic_timer_starts_with = 0;
+
 #pragma endregion
 
 #pragma region Lamps
@@ -78,7 +105,6 @@ bool porch_lamps_enabled;
 
 int backside_lamps_mode = 1;
 bool backside_lamps_enabled;
-
 #pragma endregion
 
 #pragma region NTP
@@ -88,7 +114,6 @@ const char *ntpServer = "pool.ntp.org";
 #pragma endregion
 
 #pragma region Blynk virt pins
-
 #define pin_manual_mode_set_point 0
 #define pin_current_time 1
 #define pin_heater_enabled 2
@@ -106,18 +131,43 @@ const char *ntpServer = "pool.ntp.org";
 #define pin_for_months_heated_hours 14
 WidgetBridge bridge1(V15);
 #define pin_backside_lamps_mode 16
-#define pin_pir_move 24
+#define pin_outdoor_signal 17
+#define pin_gate_signal 18
+
+#define vpin_protect_front_side 19
+#define vpin_protect_back_side 20
+#define vpin_protect_left_side 21
+#define vpin_protect_right_side 22
+#define vpin_protect_porch 23
+
+#define vpin_porch_alarm 24
 #define pin_guard_mode 25
 #define pin_restart 26
 
+#define vpin_front_side_alarm 27
+#define vpin_back_side_alarm 28
+#define vpin_left_side_alarm 29
+#define vpin_right_side_alarm 30
+#define vpin_reset_all_the_alarm_leds 31
+
+#define vpin_protect_inside 32
+#define vpin_inside_alarm 33
+#pragma endregion
+
+#pragma region Virtaul leds
+
+WidgetLED porch_led_alarm(vpin_porch_alarm);
+WidgetLED front_side_led_alarm(vpin_front_side_alarm);
+WidgetLED back_side_led_alarm(vpin_back_side_alarm);
+WidgetLED left_side_led_alarm(vpin_left_side_alarm);
+WidgetLED right_side_led_alarm(vpin_right_side_alarm);
+WidgetLED inside_led_alarm(vpin_inside_alarm);
 #pragma endregion
 
 Preferences pref;
 
 int heating_mode = 1;
 bool heater_enabled;
-
-
 
 String current_time;
 int current_hour;
@@ -203,36 +253,48 @@ void setup()
 	#pragma region PinInit
 	pinMode(heater_pin, OUTPUT);
 	pinMode(porch_lamps_pin, OUTPUT);
-	pinMode(porch_lamps_pin, OUTPUT);
 	pinMode(siren_pin, OUTPUT);
-	pinMode(pir_pin, INPUT_PULLDOWN);
+	pinMode(backside_lamps_pin, OUTPUT);
+	
+	pinMode(outdoor_control_pin, OUTPUT);
+	digitalWrite(outdoor_control_pin, HIGH);
+	pinMode(gate_control_pin, OUTPUT);
+	digitalWrite(gate_control_pin, HIGH);
+	
+	pinMode(porch_alarm_pin, INPUT_PULLUP);
+	pinMode(front_side_alarm_pin, INPUT_PULLUP);
+	pinMode(back_side_alarm_pin, INPUT_PULLUP);
+	pinMode(left_side_alarm_pin, INPUT_PULLUP);
+	pinMode(right_side_alarm_pin, INPUT_PULLUP);
+	pinMode(inside_alarm_pin, INPUT_PULLUP);
 	#pragma endregion
 
-#pragma region Watchdog init
+	#pragma region Watchdog init
 	timer = timerBegin(0, 80, true);                   
 	timerAttachInterrupt(timer, &restart, true);    
 	timerAlarmWrite(timer, wdtTimeout * 1000, false);  
 	timerAlarmEnable(timer);                           
-#pragma endregion
+	#pragma endregion
 	
 	#pragma region TaskCreate
 	xTaskCreate(get_temps, "get_temps", 2048, NULL, 1, NULL);
 	xTaskCreate(get_time_task, "get_time_task", 10240, NULL, 1, NULL);
 	xTaskCreate(calculate_water_temp, "calculate_water_temp", 2048, NULL, 1, NULL);
-	xTaskCreate(detect_pir_move, "detect_pir_move", 1024, NULL, 1, NULL);
 	xTaskCreate(heating_control, "heating_control", 1024, NULL, 1, NULL);
 	xTaskCreate(porch_lamps_control, "porch_lamps_control", 1024, NULL, 1, NULL);
 	xTaskCreate(backside_lamps_control, "backside_lamps_control", 1024, NULL, 1, NULL);
 	xTaskCreate(panic_control, "panic_control", 1024, NULL, 1, NULL);
-	xTaskCreate(guard_control, "guard_control", 8192, NULL, 1, NULL);
+	xTaskCreate(guard_control, "guard_control", 18432, NULL, 1, NULL);
 	xTaskCreate(send_data_to_blynk, "send_data_to_blynk", 10240, NULL, 1, NULL);
-	xTaskCreate(run_blynk, "run_blynk", 2048, NULL, 1, NULL);
+	xTaskCreate(run_blynk, "run_blynk", 10240, NULL, 1, NULL);
 	xTaskCreate(write_setting_to_pref, "write_setting_to_pref", 2048, NULL, 1, NULL);
 	xTaskCreate(count_heated_hours, "count_heated_hours", 2048, NULL, 1, NULL);
 	xTaskCreate(send_heated_hours_to_app, "send_heated_hours_to_app", 4096, NULL, 1, NULL);
 	xTaskCreate(feed_watchdog, "feed_watchdog", 1024, NULL, 1, NULL);
 	xTaskCreate(heart_beat, "heart_beat", 1024, NULL, 1, NULL);
 	xTaskCreate(restart_if_temp_sensors_have_frozen, "restart_if_temp_sensors_have_frozen", 2048, NULL, 1, NULL);
+	xTaskCreate(open_outdoor, "open_outdoor", 8192, NULL, 1, NULL);
+	xTaskCreate(send_signal_to_gate, "send_signal_to_gate", 8192, NULL, 1, NULL);
 	#pragma endregion
 
 }
@@ -246,10 +308,7 @@ BLYNK_WRITE(pin_manual_mode_set_point)
 
 BLYNK_WRITE(pin_heater_enabled)
 {
-	if (param.asInt())
-		heater_enabled = true;
-	else
-		heater_enabled = false;
+	heater_enabled = param.asInt();
 }
 
 BLYNK_WRITE(pin_min_water_temp)
@@ -302,6 +361,52 @@ BLYNK_WRITE(pin_restart)
 {
 	int restart_signal = param.asInt();
 	if (restart_signal == 1) restart();
+}
+
+BLYNK_WRITE(pin_outdoor_signal)
+{
+	outdoor_signal = param.asInt();
+}
+
+BLYNK_WRITE(pin_gate_signal)
+{
+	gate_signal = param.asInt();
+}
+
+BLYNK_WRITE(vpin_protect_front_side)
+{
+	protect_front_side = param.asInt();
+}
+
+BLYNK_WRITE(vpin_protect_back_side)
+{
+	protect_back_side = param.asInt();
+}
+
+BLYNK_WRITE(vpin_protect_left_side)
+{
+	protect_left_side = param.asInt();
+}
+
+BLYNK_WRITE(vpin_protect_right_side)
+{
+	protect_right_side = param.asInt();
+}
+
+BLYNK_WRITE(vpin_protect_porch)
+{
+	protect_porch = param.asInt();
+}
+
+BLYNK_WRITE(vpin_protect_inside)
+{
+	protect_inside = param.asInt();
+}
+
+BLYNK_WRITE(vpin_reset_all_the_alarm_leds)
+{
+	if (param.asInt())
+		reset_all_the_alarm_leds();
 }
 
 BLYNK_CONNECTED()

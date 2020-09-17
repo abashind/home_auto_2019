@@ -50,8 +50,96 @@ void read_settings_from_pref()
 	panic_mode = pref.getInt("panic_mode");    
 	heating_mode = pref.getInt("heating_mode");    
 	porch_lamps_mode = pref.getInt("porch_lamps_mode");
+	invasion_detected = pref.getBool("invasion_detected");
 	Serial.println(String(man_mode_set_p) + ":" + String(day_set_p) + ":" + String(night_set_p) + ":" +  String(max_water_temp) + ":" +  String(min_water_temp) + ":" +  String(heating_mode));
 	xSemaphoreGive(pref_mutex);	
+}
+
+void set_led_red(WidgetLED led)
+{
+	led.setColor("#D3435C");
+	led.on();
+}
+
+void set_led_green(WidgetLED led)
+{
+	led.setColor("#23C48E");
+	led.on();
+}
+
+void reset_all_the_alarm_leds()
+{
+	set_led_green(porch_led_alarm);
+	
+	set_led_green(front_side_led_alarm);
+	
+	set_led_green(back_side_led_alarm);
+	
+	set_led_green(left_side_led_alarm);
+	
+	set_led_green(right_side_led_alarm);
+}
+
+void send_panic_to_outdoor_esp32()
+{
+	xSemaphoreTake(wifi_mutex, portMAX_DELAY);
+	bridge1.virtualWrite(V2, panic_mode);
+	xSemaphoreGive(wifi_mutex);
+}
+
+void detect_invasion()
+{
+	//Get states of move sensors.
+	porch_alarm = !digitalRead(porch_alarm_pin);
+	front_side_alarm = !digitalRead(front_side_alarm_pin);
+	back_side_alarm = !digitalRead(back_side_alarm_pin);
+	left_side_alarm = !digitalRead(left_side_alarm_pin);
+	right_side_alarm = !digitalRead(right_side_alarm_pin);
+	inside_alarm = !digitalRead(inside_alarm_pin);
+	
+	//Set leds to red color.
+	if (porch_alarm)
+		set_led_red(porch_led_alarm);
+		
+	if (front_side_alarm)
+		set_led_red(front_side_led_alarm);
+		
+	if (back_side_alarm)
+		set_led_red(back_side_led_alarm);
+		
+	if (left_side_alarm)
+		set_led_red(left_side_led_alarm);
+		
+	if (right_side_alarm)
+		set_led_red(right_side_led_alarm);
+	
+	if (inside_alarm)
+		set_led_red(inside_led_alarm);
+		
+	//Determine invasion, if it's needed.
+	if((porch_alarm && protect_porch) || 
+		(front_side_alarm && protect_front_side) || 
+		(back_side_alarm && protect_back_side) ||
+		(left_side_alarm && protect_left_side) ||
+		(right_side_alarm && protect_right_side) ||
+		(inside_alarm && protect_inside))
+		invasion_detected = true;
+	else
+		invasion_detected = false;
+}
+
+void write_to_pref_invasion_detected()
+{
+	xSemaphoreTake(pref_mutex, portMAX_DELAY);
+	pref.putBool("invasion_detected", invasion_detected);
+	xSemaphoreGive(pref_mutex);
+}
+
+void send_to_app_invasion_notification()
+{
+	xSemaphoreTake(wifi_mutex, portMAX_DELAY);
+	Blynk.notify("Invasion has been detected! Go to watch the cams!!!");
+	xSemaphoreGive(wifi_mutex);
 }
 
 #pragma endregion
@@ -139,20 +227,6 @@ void calculate_water_temp(void *pvParameters)
 			if (temp_outside <= -30)
 				max_water_temp = 85;
 		}
-		
-		
-		vTaskDelay(1000 / portTICK_RATE_MS);
-	}
-}
-
-void detect_pir_move(void *pvParameters)
-{
-	while (true)
-	{
-		if (digitalRead(pir_pin))
-			pir_move = true;
-		else
-			pir_move = false;
 		
 		vTaskDelay(1000 / portTICK_RATE_MS);
 	}
@@ -282,10 +356,8 @@ void siren_beeps(void *pvParameters)
 	while (true)
 	{
 		digitalWrite(siren_pin, LOW);
-		siren_enabled = true;
 		vTaskDelay(beep);
 		digitalWrite(siren_pin, HIGH);
-		siren_enabled = false;
 		vTaskDelay(silent);
 	}
 }
@@ -298,7 +370,6 @@ void panic_control(void *pvParameters)
 		if(panic_mode == 1)
 		{
 			digitalWrite(siren_pin, HIGH);
-			siren_enabled = false; 
 		}
 		//Outside lamps blink
 		if(panic_mode == 2)
@@ -306,7 +377,6 @@ void panic_control(void *pvParameters)
 			if ((slow_blink_handle) == NULL)
 				xTaskCreate(lamps_blink, "lamps_blink", 10000, (void *)1000, 1, &slow_blink_handle);
 			digitalWrite(siren_pin, HIGH);
-			siren_enabled = false; 
 		}
 		else if(slow_blink_handle != NULL)
 		{
@@ -341,7 +411,6 @@ void panic_control(void *pvParameters)
 			if (fast_blink_handle_2 == NULL)
 				xTaskCreate(lamps_blink, "lamps_blink", 10000, (void *)166, 1, &fast_blink_handle_2); 
 			digitalWrite(siren_pin, LOW);
-			siren_enabled = true; 
 		}
 		else if(fast_blink_handle_2 != NULL)
 		{
@@ -356,31 +425,32 @@ void guard_control(void *pvParameters)
 {
 	while (true)
 	{
-		//Guard mode is FULL.
-		if(guard_mode == 2)
+		detect_invasion();
+		
+		if (panic_mode != 1 && !invasion_detected)
 		{
-			if (pir_move)
-				panic_mode = 4;
-			else
+			if (reset_panic_timer_starts_with == 0) reset_panic_timer_starts_with = millis();
+			if (millis() - reset_panic_timer_starts_with > 400000)
+			{
 				panic_mode = 1;
-		}
-
-		//Guard mode is semi silent.
-		else if(guard_mode == 3)
-		{
-			if (pir_move)
-				panic_mode = 3;
-			else
-				panic_mode = 1;
+				write_to_pref_invasion_detected();
+				send_panic_to_outdoor_esp32();
+				reset_panic_timer_starts_with = 0;
+			}
 		}
 		
-		xSemaphoreTake(wifi_mutex, portMAX_DELAY);
-		bridge1.virtualWrite(V2, panic_mode);
-		xSemaphoreGive(wifi_mutex);
+		if (guard_mode != 1 && invasion_detected)
+		{
+			panic_mode = guard_mode;
+			send_panic_to_outdoor_esp32();
+			send_to_app_invasion_notification();
+			write_to_pref_invasion_detected();
+			reset_panic_timer_starts_with = millis();
+			vTaskDelay(2000 / portTICK_RATE_MS);
+		}
 		
-		vTaskDelay(1000 / portTICK_RATE_MS);
+		vTaskDelay(50 / portTICK_RATE_MS);
 	}
-	
 }
 
 void send_data_to_blynk(void *pvParameters)
@@ -402,15 +472,16 @@ void send_data_to_blynk(void *pvParameters)
 				Blynk.virtualWrite(pin_porch_lamps_mode, 2);
 			else
 				Blynk.virtualWrite(pin_porch_lamps_mode, 1);
+			
+			if (backside_lamps_enabled)
+				Blynk.virtualWrite(pin_backside_lamps_mode, 2);
+			else
+				Blynk.virtualWrite(pin_backside_lamps_mode, 1);
 		}
 		Blynk.virtualWrite(pin_current_time, current_time);
 		Blynk.virtualWrite(pin_temp_inside, temp_inside);
 		Blynk.virtualWrite(pin_temp_water, temp_water);
 		Blynk.virtualWrite(pin_temp_outside, temp_outside);
-		if (pir_move)
-			Blynk.virtualWrite(pin_pir_move, 1);
-		else
-			Blynk.virtualWrite(pin_pir_move, 0);
 		
 		xSemaphoreGive(wifi_mutex);
 		
@@ -447,7 +518,7 @@ void write_setting_to_pref(void *pvParameters)
 		pref.putInt("guard_mode", guard_mode); 
 		pref.putInt("panic_mode", panic_mode);    
 		pref.putInt("heating_mode", heating_mode);    
-		pref.putInt("porch_lamps_mode", porch_lamps_mode);                                     
+		pref.putInt("porch_lamps_mode", porch_lamps_mode);
 		xSemaphoreGive(pref_mutex);
 		vTaskDelay(30000 / portTICK_RATE_MS);
 	}
@@ -564,11 +635,44 @@ void heart_beat(void *pvParameters)
 {
 	while (true)
 	{
-		Serial.println(current_time + ".  This is just looooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooong string," +
-			"for longer UART led glow. Because there isn't builtin led on my esp32 board :) ");
-		
+		Serial.println(current_time + ". Loooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooong.");
 		vTaskDelay(1000 / portTICK_RATE_MS);
 	}
 }
+
+void open_outdoor(void *pvParameters)
+{
+	while (true)
+	{
+		if (outdoor_signal)
+		{
+			digitalWrite(outdoor_control_pin, LOW);
+			vTaskDelay(750 / portTICK_RATE_MS);
+			digitalWrite(outdoor_control_pin, HIGH);
+			outdoor_signal = false;
+			Blynk.virtualWrite(pin_outdoor_signal, outdoor_signal);
+		}
+			
+		vTaskDelay(100 / portTICK_RATE_MS);
+	}
+}
+
+void send_signal_to_gate(void *pvParameters)
+{
+	while (true)
+	{
+		if (gate_signal)
+		{
+			digitalWrite(gate_control_pin, LOW);
+			vTaskDelay(500 / portTICK_RATE_MS);
+			digitalWrite(gate_control_pin, HIGH);
+			gate_signal = false;
+			Blynk.virtualWrite(pin_gate_signal, gate_signal);
+		}
+		
+		vTaskDelay(100 / portTICK_RATE_MS);
+	}
+}
+
 
 #pragma endregion
