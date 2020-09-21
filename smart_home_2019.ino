@@ -168,7 +168,7 @@ WidgetBridge bridge1(V15);
 #define vpin_mp3_number 35
 #pragma endregion
 
-#pragma region Virtaul leds
+#pragma region Virtual leds
 
 WidgetLED porch_led_alarm(vpin_porch_alarm);
 WidgetLED front_side_led_alarm(vpin_front_side_alarm);
@@ -176,6 +176,14 @@ WidgetLED back_side_led_alarm(vpin_back_side_alarm);
 WidgetLED left_side_led_alarm(vpin_left_side_alarm);
 WidgetLED right_side_led_alarm(vpin_right_side_alarm);
 WidgetLED inside_led_alarm(vpin_inside_alarm);
+
+bool porch_led_alarm_is_red = false;
+bool front_side_led_alarm_is_red = false;
+bool back_side_led_alarm_is_red = false;
+bool left_side_led_alarm_is_red = false;
+bool right_side_led_alarm_is_red = false;
+bool inside_led_alarm_is_red = false;
+
 #pragma endregion
 
 Preferences pref;
@@ -303,23 +311,23 @@ void setup()
 	
 	#pragma region TaskCreate
 	xTaskCreate(get_temps, "get_temps", 2048, NULL, 1, NULL);
-	xTaskCreate(get_time_task, "get_time_task", 10240, NULL, 1, NULL);
+	xTaskCreate(get_time_task, "get_time_task", 8192, NULL, 1, NULL);
 	xTaskCreate(calculate_water_temp, "calculate_water_temp", 2048, NULL, 1, NULL);
 	xTaskCreate(heating_control, "heating_control", 1024, NULL, 1, NULL);
 	xTaskCreate(porch_lamps_control, "porch_lamps_control", 1024, NULL, 1, NULL);
 	xTaskCreate(backside_lamps_control, "backside_lamps_control", 1024, NULL, 1, NULL);
-	xTaskCreate(panic_control, "panic_control", 1024, NULL, 1, NULL);
-	xTaskCreate(guard_control, "guard_control", 18432, NULL, 1, NULL);
-	xTaskCreate(send_data_to_blynk, "send_data_to_blynk", 10240, NULL, 1, NULL);
-	xTaskCreate(run_blynk, "run_blynk", 10240, NULL, 1, NULL);
+	xTaskCreate(panic_control, "panic_control", 8192, NULL, 1, NULL);
+	xTaskCreate(guard_control, "guard_control", 8192, NULL, 1, NULL); //!
+	xTaskCreate(send_data_to_blynk, "send_data_to_blynk", 8192, NULL, 1, NULL); //!
+	xTaskCreate(run_blynk, "run_blynk", 8192, NULL, 1, NULL);
 	xTaskCreate(write_setting_to_pref, "write_setting_to_pref", 2048, NULL, 1, NULL);
 	xTaskCreate(count_heated_hours, "count_heated_hours", 2048, NULL, 1, NULL);
 	xTaskCreate(send_heated_hours_to_app, "send_heated_hours_to_app", 4096, NULL, 1, NULL);
 	xTaskCreate(feed_watchdog, "feed_watchdog", 1024, NULL, 1, NULL);
 	xTaskCreate(heart_beat, "heart_beat", 1024, NULL, 1, NULL);
 	xTaskCreate(restart_if_temp_sensors_have_frozen, "restart_if_temp_sensors_have_frozen", 2048, NULL, 1, NULL);
-	xTaskCreate(open_outdoor, "open_outdoor", 8192, NULL, 1, NULL);
-	xTaskCreate(send_signal_to_gate, "send_signal_to_gate", 8192, NULL, 1, NULL);
+	xTaskCreate(open_outdoor, "open_outdoor", 4096, NULL, 1, NULL);
+	xTaskCreate(send_signal_to_gate, "send_signal_to_gate", 4096, NULL, 1, NULL);
 	#pragma endregion
 
 }

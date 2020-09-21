@@ -70,17 +70,23 @@ void set_led_green(WidgetLED led)
 
 void reset_all_the_alarm_leds()
 {
-	set_led_green(porch_led_alarm);
+		set_led_green(porch_led_alarm);
+		porch_led_alarm_is_red = false;
+
+		set_led_green(front_side_led_alarm);
+		front_side_led_alarm_is_red = false;
 	
-	set_led_green(front_side_led_alarm);
+		set_led_green(back_side_led_alarm);
+		back_side_led_alarm_is_red = false;
 	
-	set_led_green(back_side_led_alarm);
+		set_led_green(left_side_led_alarm);
+		left_side_led_alarm_is_red = false;
 	
-	set_led_green(left_side_led_alarm);
+		set_led_green(right_side_led_alarm);
+		right_side_led_alarm_is_red = false;
 	
-	set_led_green(right_side_led_alarm);
-	
-	set_led_green(inside_led_alarm);
+		set_led_green(inside_led_alarm);
+		inside_led_alarm_is_red = false;
 }
 
 void send_panic_to_outdoor_esp32()
@@ -101,23 +107,41 @@ void detect_invasion()
 	inside_alarm = !digitalRead(inside_alarm_pin);
 	
 	//Set leds to red color.
-	if (porch_alarm)
+	if(porch_alarm && !porch_led_alarm_is_red)
+	{
 		set_led_red(porch_led_alarm);
+		porch_led_alarm_is_red = true;
+	}
 		
-	if (front_side_alarm)
+	if (front_side_alarm && !front_side_led_alarm_is_red)
+	{
 		set_led_red(front_side_led_alarm);
+		front_side_led_alarm_is_red = true;
+	}
 		
-	if (back_side_alarm)
+	if (back_side_alarm && !back_side_led_alarm_is_red)
+	{
 		set_led_red(back_side_led_alarm);
+		back_side_led_alarm_is_red = true;
+	}
 		
-	if (left_side_alarm)
+	if (left_side_alarm && !left_side_led_alarm_is_red)
+	{
 		set_led_red(left_side_led_alarm);
+		left_side_led_alarm_is_red = true;
+	}
 		
-	if (right_side_alarm)
+	if (right_side_alarm && !right_side_led_alarm_is_red)
+	{
 		set_led_red(right_side_led_alarm);
+		right_side_led_alarm_is_red = true;
+	}
 	
-	if (inside_alarm)
+	if (inside_alarm && !inside_led_alarm_is_red)
+	{
 		set_led_red(inside_led_alarm);
+		inside_led_alarm_is_red = true;
+	}
 		
 	//Determine invasion, if it's needed.
 	if((porch_alarm && protect_porch) || 
@@ -678,7 +702,10 @@ void open_outdoor(void *pvParameters)
 			vTaskDelay(750 / portTICK_RATE_MS);
 			digitalWrite(outdoor_control_pin, HIGH);
 			outdoor_signal = false;
+			
+			xSemaphoreTake(wifi_mutex, portMAX_DELAY);
 			Blynk.virtualWrite(pin_outdoor_signal, outdoor_signal);
+			xSemaphoreGive(wifi_mutex);
 		}
 			
 		vTaskDelay(100 / portTICK_RATE_MS);
@@ -692,10 +719,13 @@ void send_signal_to_gate(void *pvParameters)
 		if (gate_signal)
 		{
 			digitalWrite(gate_control_pin, LOW);
-			vTaskDelay(500 / portTICK_RATE_MS);
+			vTaskDelay(250 / portTICK_RATE_MS);
 			digitalWrite(gate_control_pin, HIGH);
 			gate_signal = false;
+			
+			xSemaphoreTake(wifi_mutex, portMAX_DELAY);
 			Blynk.virtualWrite(pin_gate_signal, gate_signal);
+			xSemaphoreGive(wifi_mutex);
 		}
 		
 		vTaskDelay(100 / portTICK_RATE_MS);
