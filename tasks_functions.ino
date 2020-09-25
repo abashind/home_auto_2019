@@ -198,49 +198,11 @@ void get_temps(void *pvParameters)
 		temp_outside_sensor.requestTemperatures();
 		temp_water_sensor.requestTemperatures();
 			
-		vTaskDelay(3000 / portTICK_RATE_MS);
+		temp_inside = temp_inside_sensor.getTempCByIndex(0);
+		temp_outside = temp_outside_sensor.getTempCByIndex(0);
+		temp_water = temp_water_sensor.getTempCByIndex(0);
 		
-		float _temp_inside = temp_inside_sensor.getTempCByIndex(0);
-		if (int(_temp_inside) != -127)
-			temp_inside = _temp_inside;
-    
-		float _temp_outside = temp_outside_sensor.getTempCByIndex(0);
-		if (int(_temp_outside) != -127)
-			temp_outside = _temp_outside;
-
-		float _water_temp = temp_water_sensor.getTempCByIndex(0);
-		if (int(_water_temp) != -127)  
-			temp_water = _water_temp;
-		
-		vTaskDelay(28000 / portTICK_RATE_MS);
-	}
-}
-
-void restart_if_temp_sensors_have_frozen(void *pvParameters)
-{	
-	float _temp_inside;
-	float _temp_outside;
-	float _temp_water;
-	
-	while (true)
-	{
-		for (int i = 0; i < 5; i++)
-		{
-			if (_temp_inside == temp_inside & _temp_outside == temp_outside & _temp_water == temp_water)
-			{
-				vTaskDelay(60000 / portTICK_RATE_MS);
-				if (i != 4) continue;
-			}
-			else break;
-			
-			restart();
-		}
-		
-		_temp_inside = temp_inside;
-		_temp_outside = temp_outside;
-		_temp_water = temp_water;
-		
-		vTaskDelay(30000 / portTICK_RATE_MS); 
+		vTaskDelay(15000 / portTICK_RATE_MS);
 	}
 }
 
@@ -664,19 +626,11 @@ void send_heated_hours_to_app(void *pvParameters)
 	}
 }
 
-void feed_watchdog(void *pvParameters)
+void heart_beat_feed_watchdog(void *pvParameters)
 {
 	while (true)
-	{
+	{	
 		timerWrite(timer, 0);
-		vTaskDelay(1000 / portTICK_RATE_MS);
-	}
-}
-
-void heart_beat(void *pvParameters)
-{
-	while (true)
-	{
 		Serial.println("Looooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooong.");
 		Serial.println(xPortGetFreeHeapSize());
 		Serial.println(xPortGetMinimumEverFreeHeapSize());
@@ -721,16 +675,6 @@ void send_signal_to_gate(void *pvParameters)
 		}
 		
 		vTaskDelay(1500 / portTICK_RATE_MS);
-	}
-}
-
-void handle_web_server_clients(void *pvParameters)
-{
-	while (true)
-	{
-		server.handleClient();
-		
-		vTaskDelay(1000 / portTICK_RATE_MS);
 	}
 }
 

@@ -12,9 +12,6 @@
 #include <map>
 #include <DFRobotDFPlayerMini.h>
 #include <HardwareSerial.h>
-#include <WebServer.h>
-#include <ESPmDNS.h>
-#include <Update.h>
 #include <sstream>
 #pragma endregion
 
@@ -253,91 +250,6 @@ std::map<const char*, uint8_t> heated_hours_months_keys_numbers
 	{ "h_h_per_may", 4 }
 };
 
-#pragma region WebServer
-
-const char* host ="esp32";
-WebServer server(80);
-
-const char* loginIndex = 
- "<form name='loginForm'>"
-    "<table width='20%' bgcolor='A09F9F' align='center'>"
-        "<tr>"
-            "<td colspan=2>"
-                "<center><font size=4><b>ESP32 Login Page</b></font></center>"
-                "<br>"
-            "</td>"
-            "<br>"
-            "<br>"
-        "</tr>"
-        "<td>Username:</td>"
-        "<td><input type='text' size=25 name='userid'><br></td>"
-        "</tr>"
-        "<br>"
-        "<br>"
-        "<tr>"
-            "<td>Password:</td>"
-            "<td><input type='Password' size=25 name='pwd'><br></td>"
-            "<br>"
-            "<br>"
-        "</tr>"
-        "<tr>"
-            "<td><input type='submit' onclick='check(this.form)' value='Login'></td>"
-        "</tr>"
-    "</table>"
-"</form>"
-"<script>"
-    "function check(form)"
-    "{"
-    "if(form.userid.value=='admin' && form.pwd.value=='11111')"
-    "{"
-    "window.open('/serverIndex')"
-    "}"
-    "else"
-    "{"
-    " alert('Error Password or Username')/*displays error message*/"
-    "}"
-    "}"
-"</script>";
-
-const char* serverIndex = 
-"<script src='https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js'></script>"
-"<form method='POST' action='#' enctype='multipart/form-data' id='upload_form'>"
-   "<input type='file' name='update'>"
-        "<input type='submit' value='Update'>"
-    "</form>"
- "<div id='prg'>progress: 0%</div>"
- "<script>"
-  "$('form').submit(function(e){"
-  "e.preventDefault();"
-  "var form = $('#upload_form')[0];"
-  "var data = new FormData(form);"
-  " $.ajax({"
-  "url: '/update',"
-  "type: 'POST',"
-  "data: data,"
-  "contentType: false,"
-  "processData:false,"
-  "xhr: function() {"
-  "var xhr = new window.XMLHttpRequest();"
-  "xhr.upload.addEventListener('progress', function(evt) {"
-  "if (evt.lengthComputable) {"
-  "var per = evt.loaded / evt.total;"
-  "$('#prg').html('progress: ' + Math.round(per*100) + '%');"
-  "}"
-  "}, false);"
-  "return xhr;"
-  "},"
-  "success:function(d, s) {"
-  "console.log('success!')" 
- "},"
- "error: function (a, b, c) {"
- "}"
- "});"
- "});"
- "</script>";
-	
-#pragma endregion
-
 template <typename T> std::string to_str(const T& t) {
 	std::ostringstream ss;
 	ss << t;
@@ -347,27 +259,27 @@ template <typename T> std::string to_str(const T& t) {
 void setup()
 {
 	Serial.begin(9600);
-	Serial.println("Setup start...");
 	
 	mp3_serial.begin(9600, SERIAL_8N1, mp3_serial_rx_pin, mp3_serial_tx_pin);
+	mp3_player.begin(mp3_serial);
 	mp3_player.setTimeOut(500);
 	mp3_player.volume(26);
 	mp3_player.EQ(DFPLAYER_EQ_BASS);
 	mp3_player.outputDevice(DFPLAYER_DEVICE_SD);
-	
+
 	wifi_mutex = xSemaphoreCreateMutex();
 	pref_mutex = xSemaphoreCreateMutex();
 	
 	pref.begin("pref_1", false);
-	
+
 	xSemaphoreTake(wifi_mutex, portMAX_DELAY);
 	Blynk.begin(auth, ssid, pass);
 	xSemaphoreGive(wifi_mutex);
 	
 	Wire.begin();
-	
+
 	configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-	
+
 	delay(1000);
 	get_time();
 	
@@ -383,6 +295,7 @@ void setup()
 	pinMode(heater_pin, OUTPUT);
 	pinMode(porch_lamps_pin, OUTPUT);
 	pinMode(siren_pin, OUTPUT);
+	digitalWrite(siren_pin, HIGH);
 	pinMode(backside_lamps_pin, OUTPUT);
 	
 	pinMode(outdoor_control_pin, OUTPUT);
@@ -404,79 +317,24 @@ void setup()
 	timerAlarmWrite(timer, wdtTimeout * 1000, false);  
 	timerAlarmEnable(timer);                           
 	#pragma endregion
-	
-	#pragma region WebServer
-	MDNS.begin(host);
-	server.on("/",
-		HTTP_GET,
-		[]() {
-			server.sendHeader("Connection", "close");
-			server.send(200, "text/html", loginIndex);
-		});
-	
-	server.on("/serverIndex",
-		HTTP_GET,
-		[]() {
-			server.sendHeader("Connection", "close");
-			server.send(200, "text/html", serverIndex);
-		});
-	
-	server.on("/update",
-		HTTP_POST,
-		[]() {
-			server.sendHeader("Connection", "close");
-			server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
-			ESP.restart();
-		},
-		[]() {
-			HTTPUpload& upload = server.upload();
-			if (upload.status == UPLOAD_FILE_START) {
-				Serial.printf("Update: %s\n", upload.filename.c_str());
-				if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
-					 //start with max available size
-				  Update.printError(Serial);
-				}
-			}
-			else if (upload.status == UPLOAD_FILE_WRITE) {
-				/* flashing firmware to ESP*/
-				if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
-					Update.printError(Serial);
-				}
-			}
-			else if (upload.status == UPLOAD_FILE_END) {
-				if (Update.end(true)) {
-					 //true to set the size to the current progress
-				  Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
-				}
-				else {
-					Update.printError(Serial);
-				}
-			}
-		});
-	server.begin();
-	
-	#pragma endregion
-	
-	#pragma region TaskCreate
-	xTaskCreate(get_temps, "get_temps", 2048, NULL, 1, NULL);
-	xTaskCreate(get_time_task, "get_time_task", 8192, NULL, 1, NULL);
-	xTaskCreate(calculate_water_temp, "calculate_water_temp", 2048, NULL, 1, NULL);
-	xTaskCreate(heating_control, "heating_control", 1024, NULL, 1, NULL);
-	xTaskCreate(porch_lamps_control, "porch_lamps_control", 1024, NULL, 1, NULL);
-	xTaskCreate(backside_lamps_control, "backside_lamps_control", 1024, NULL, 1, NULL);
-	xTaskCreate(panic_control, "panic_control", 8192, NULL, 1, NULL);
-	xTaskCreate(guard_control, "guard_control", 8192, NULL, 1, NULL);  //!
-	xTaskCreate(send_data_to_blynk, "send_data_to_blynk", 8192, NULL, 1, NULL);  //!
-	xTaskCreate(run_blynk, "run_blynk", 8192, NULL, 1, NULL);  //!
-	xTaskCreate(write_setting_to_pref, "write_setting_to_pref", 2048, NULL, 1, NULL);
-	xTaskCreate(count_heated_hours, "count_heated_hours", 2048, NULL, 1, NULL);
-	xTaskCreate(send_heated_hours_to_app, "send_heated_hours_to_app", 4096, NULL, 1, NULL);
-	xTaskCreate(feed_watchdog, "feed_watchdog", 1024, NULL, 1, NULL);
-	xTaskCreate(heart_beat, "heart_beat", 1024, NULL, 1, NULL);
-	xTaskCreate(restart_if_temp_sensors_have_frozen, "restart_if_temp_sensors_have_frozen", 2048, NULL, 1, NULL);
-	xTaskCreate(open_outdoor, "open_outdoor", 4096, NULL, 1, NULL);
-	xTaskCreate(send_signal_to_gate, "send_signal_to_gate", 4096, NULL, 1, NULL);
-	xTaskCreate(handle_web_server_clients, "handle_web_server_clients", 4096, NULL, 1, NULL);
+
+	#pragma region TasksCreate
+	xTaskCreatePinnedToCore(get_temps, "get_temps", 2048, NULL, 2, NULL, 1);
+	xTaskCreatePinnedToCore(get_time_task, "get_time_task", 8192, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(calculate_water_temp, "calculate_water_temp", 2048, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(heating_control, "heating_control", 1024, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(porch_lamps_control, "porch_lamps_control", 1024, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(backside_lamps_control, "backside_lamps_control", 1024, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(panic_control, "panic_control", 8192, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(guard_control, "guard_control", 8192, NULL, 1, NULL, 1);  //!
+	xTaskCreatePinnedToCore(send_data_to_blynk, "send_data_to_blynk", 8192, NULL, 1, NULL, 1);  //!
+	xTaskCreatePinnedToCore(run_blynk, "run_blynk", 8192, NULL, 1, NULL, 1);  //!
+	xTaskCreatePinnedToCore(write_setting_to_pref, "write_setting_to_pref", 2048, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(count_heated_hours, "count_heated_hours", 2048, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(send_heated_hours_to_app, "send_heated_hours_to_app", 4096, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(heart_beat_feed_watchdog, "heart_beat_feed_watchdog", 1024, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(open_outdoor, "open_outdoor", 4096, NULL, 1, NULL, 1);
+	xTaskCreatePinnedToCore(send_signal_to_gate, "send_signal_to_gate", 4096, NULL, 1, NULL, 1);
 	#pragma endregion
 
 }
