@@ -195,11 +195,12 @@ void get_temps(void *pvParameters)
 	while (true)
 	{
 		temp_inside_sensor.requestTemperatures();
-		temp_outside_sensor.requestTemperatures();
-		temp_water_sensor.requestTemperatures();
-			
 		temp_inside = temp_inside_sensor.getTempCByIndex(0);
+		
+		temp_outside_sensor.requestTemperatures();
 		temp_outside = temp_outside_sensor.getTempCByIndex(0);
+		
+		temp_water_sensor.requestTemperatures();
 		temp_water = temp_water_sensor.getTempCByIndex(0);
 		
 		vTaskDelay(15000 / portTICK_RATE_MS);

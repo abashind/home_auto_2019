@@ -258,6 +258,29 @@ template <typename T> std::string to_str(const T& t) {
 
 void setup()
 {
+#pragma region PinInit
+	pinMode(heater_pin, OUTPUT);
+	digitalWrite(heater_pin, LOW);
+	pinMode(porch_lamps_pin, OUTPUT);
+	digitalWrite(porch_lamps_pin, LOW);
+	pinMode(siren_pin, OUTPUT);
+	digitalWrite(siren_pin, HIGH);
+	pinMode(backside_lamps_pin, OUTPUT);
+	digitalWrite(backside_lamps_pin, LOW);
+	
+	pinMode(outdoor_control_pin, OUTPUT);
+	digitalWrite(outdoor_control_pin, HIGH);
+	pinMode(gate_control_pin, OUTPUT);
+	digitalWrite(gate_control_pin, HIGH);
+	
+	pinMode(porch_alarm_pin, INPUT_PULLUP);
+	pinMode(front_side_alarm_pin, INPUT_PULLUP);
+	pinMode(back_side_alarm_pin, INPUT_PULLUP);
+	pinMode(left_side_alarm_pin, INPUT_PULLUP);
+	pinMode(right_side_alarm_pin, INPUT_PULLUP);
+	pinMode(inside_alarm_pin, INPUT_PULLUP);
+#pragma endregion
+	
 	Serial.begin(9600);
 	
 	mp3_serial.begin(9600, SERIAL_8N1, mp3_serial_rx_pin, mp3_serial_tx_pin);
@@ -275,40 +298,18 @@ void setup()
 	xSemaphoreTake(wifi_mutex, portMAX_DELAY);
 	Blynk.begin(auth, ssid, pass);
 	xSemaphoreGive(wifi_mutex);
-	
-	Wire.begin();
 
 	configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-
 	delay(1000);
 	get_time();
 	
 	read_settings_from_pref();
 	
 	#pragma region TempsBegin
+	Wire.begin();
 	temp_inside_sensor.begin();
 	temp_outside_sensor.begin();
 	temp_water_sensor.begin(); 
-	#pragma endregion
-
-	#pragma region PinInit
-	pinMode(heater_pin, OUTPUT);
-	pinMode(porch_lamps_pin, OUTPUT);
-	pinMode(siren_pin, OUTPUT);
-	digitalWrite(siren_pin, HIGH);
-	pinMode(backside_lamps_pin, OUTPUT);
-	
-	pinMode(outdoor_control_pin, OUTPUT);
-	digitalWrite(outdoor_control_pin, HIGH);
-	pinMode(gate_control_pin, OUTPUT);
-	digitalWrite(gate_control_pin, HIGH);
-	
-	pinMode(porch_alarm_pin, INPUT_PULLUP);
-	pinMode(front_side_alarm_pin, INPUT_PULLUP);
-	pinMode(back_side_alarm_pin, INPUT_PULLUP);
-	pinMode(left_side_alarm_pin, INPUT_PULLUP);
-	pinMode(right_side_alarm_pin, INPUT_PULLUP);
-	pinMode(inside_alarm_pin, INPUT_PULLUP);
 	#pragma endregion
 
 	#pragma region Watchdog init
@@ -336,7 +337,6 @@ void setup()
 	xTaskCreatePinnedToCore(open_outdoor, "open_outdoor", 4096, NULL, 1, NULL, 1);
 	xTaskCreatePinnedToCore(send_signal_to_gate, "send_signal_to_gate", 4096, NULL, 1, NULL, 1);
 	#pragma endregion
-
 }
 
 #pragma region BLYNK_WRITE
