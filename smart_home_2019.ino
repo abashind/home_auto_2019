@@ -12,6 +12,10 @@
 #include <map>
 #include <DFRobotDFPlayerMini.h>
 #include <HardwareSerial.h>
+#include <WebServer.h>
+#include <ESPmDNS.h>
+#include <Update.h>
+#include <sstream>
 #pragma endregion
 
 #pragma region Pins
@@ -21,7 +25,7 @@
 #define backside_lamps_pin 15 
 #define siren_pin 16
 #define porch_lamps_pin 17 
-#define in_temp_pin 27
+#define in_temp_pin 33
 #define out_temp_pin 32
 #define outdoor_control_pin 12
 #define gate_control_pin 13
@@ -193,12 +197,15 @@ DFRobotDFPlayerMini mp3_player;
 int heating_mode = 1;
 bool heater_enabled;
 
-String current_time;
+#pragma region Time
+std::string current_time;
 int current_hour;
 int current_day;
 int current_month;
 int current_year;
+#pragma endregion
 
+#pragma region Handles&Mutex
 TaskHandle_t slow_blink_handle;
 TaskHandle_t fast_blink_handle_1;
 TaskHandle_t fast_blink_handle_2;
@@ -206,6 +213,7 @@ TaskHandle_t beep_handle;
 
 SemaphoreHandle_t wifi_mutex;
 SemaphoreHandle_t pref_mutex;
+#pragma endregion
 
 #pragma region For watchdog
 
@@ -218,21 +226,21 @@ void IRAM_ATTR restart()
 }
 #pragma endregion
 
-const char* heated_hours_dmy_keys[] = 
+const char* heated_hours_dmy_keys[] 
 { 
 	"h_h_per_day",
 	"h_h_per_month",
 	"h_h_per_year"
 };
 
-const char* current_dmy_keys[] = 
+const char* current_dmy_keys[] 
 { 
 	"current_day",
 	"current_month",
 	"current_may"
 };
 
-std::map<const char*, uint8_t> heated_hours_months_keys_numbers =
+std::map<const char*, uint8_t> heated_hours_months_keys_numbers
 { 
 	{ "h_h_per_sep", 8 },
 	{ "h_h_per_oct", 9 },
@@ -245,19 +253,107 @@ std::map<const char*, uint8_t> heated_hours_months_keys_numbers =
 	{ "h_h_per_may", 4 }
 };
 
+#pragma region WebServer
+
+const char* host ="esp32";
+WebServer server(80);
+
+const char* loginIndex = 
+ "<form name='loginForm'>"
+    "<table width='20%' bgcolor='A09F9F' align='center'>"
+        "<tr>"
+            "<td colspan=2>"
+                "<center><font size=4><b>ESP32 Login Page</b></font></center>"
+                "<br>"
+            "</td>"
+            "<br>"
+            "<br>"
+        "</tr>"
+        "<td>Username:</td>"
+        "<td><input type='text' size=25 name='userid'><br></td>"
+        "</tr>"
+        "<br>"
+        "<br>"
+        "<tr>"
+            "<td>Password:</td>"
+            "<td><input type='Password' size=25 name='pwd'><br></td>"
+            "<br>"
+            "<br>"
+        "</tr>"
+        "<tr>"
+            "<td><input type='submit' onclick='check(this.form)' value='Login'></td>"
+        "</tr>"
+    "</table>"
+"</form>"
+"<script>"
+    "function check(form)"
+    "{"
+    "if(form.userid.value=='admin' && form.pwd.value=='11111')"
+    "{"
+    "window.open('/serverIndex')"
+    "}"
+    "else"
+    "{"
+    " alert('Error Password or Username')/*displays error message*/"
+    "}"
+    "}"
+"</script>";
+
+const char* serverIndex = 
+"<script src='https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js'></script>"
+"<form method='POST' action='#' enctype='multipart/form-data' id='upload_form'>"
+   "<input type='file' name='update'>"
+        "<input type='submit' value='Update'>"
+    "</form>"
+ "<div id='prg'>progress: 0%</div>"
+ "<script>"
+  "$('form').submit(function(e){"
+  "e.preventDefault();"
+  "var form = $('#upload_form')[0];"
+  "var data = new FormData(form);"
+  " $.ajax({"
+  "url: '/update',"
+  "type: 'POST',"
+  "data: data,"
+  "contentType: false,"
+  "processData:false,"
+  "xhr: function() {"
+  "var xhr = new window.XMLHttpRequest();"
+  "xhr.upload.addEventListener('progress', function(evt) {"
+  "if (evt.lengthComputable) {"
+  "var per = evt.loaded / evt.total;"
+  "$('#prg').html('progress: ' + Math.round(per*100) + '%');"
+  "}"
+  "}, false);"
+  "return xhr;"
+  "},"
+  "success:function(d, s) {"
+  "console.log('success!')" 
+ "},"
+ "error: function (a, b, c) {"
+ "}"
+ "});"
+ "});"
+ "</script>";
+	
+#pragma endregion
+
+template <typename T> std::string to_str(const T& t) {
+	std::ostringstream ss;
+	ss << t;
+	return ss.str();
+}
+
 void setup()
 {
 	Serial.begin(9600);
+	Serial.println("Setup start...");
 	
 	mp3_serial.begin(9600, SERIAL_8N1, mp3_serial_rx_pin, mp3_serial_tx_pin);
-	Serial.print("Mp3 player started with result: ");
-	Serial.print(mp3_player.begin(mp3_serial));
 	mp3_player.setTimeOut(500);
 	mp3_player.volume(26);
 	mp3_player.EQ(DFPLAYER_EQ_BASS);
 	mp3_player.outputDevice(DFPLAYER_DEVICE_SD);
-	
-	Serial.println("Setup start...");
 	
 	wifi_mutex = xSemaphoreCreateMutex();
 	pref_mutex = xSemaphoreCreateMutex();
@@ -309,6 +405,58 @@ void setup()
 	timerAlarmEnable(timer);                           
 	#pragma endregion
 	
+	#pragma region WebServer
+	MDNS.begin(host);
+	server.on("/",
+		HTTP_GET,
+		[]() {
+			server.sendHeader("Connection", "close");
+			server.send(200, "text/html", loginIndex);
+		});
+	
+	server.on("/serverIndex",
+		HTTP_GET,
+		[]() {
+			server.sendHeader("Connection", "close");
+			server.send(200, "text/html", serverIndex);
+		});
+	
+	server.on("/update",
+		HTTP_POST,
+		[]() {
+			server.sendHeader("Connection", "close");
+			server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
+			ESP.restart();
+		},
+		[]() {
+			HTTPUpload& upload = server.upload();
+			if (upload.status == UPLOAD_FILE_START) {
+				Serial.printf("Update: %s\n", upload.filename.c_str());
+				if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+					 //start with max available size
+				  Update.printError(Serial);
+				}
+			}
+			else if (upload.status == UPLOAD_FILE_WRITE) {
+				/* flashing firmware to ESP*/
+				if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+					Update.printError(Serial);
+				}
+			}
+			else if (upload.status == UPLOAD_FILE_END) {
+				if (Update.end(true)) {
+					 //true to set the size to the current progress
+				  Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
+				}
+				else {
+					Update.printError(Serial);
+				}
+			}
+		});
+	server.begin();
+	
+	#pragma endregion
+	
 	#pragma region TaskCreate
 	xTaskCreate(get_temps, "get_temps", 2048, NULL, 1, NULL);
 	xTaskCreate(get_time_task, "get_time_task", 8192, NULL, 1, NULL);
@@ -317,9 +465,9 @@ void setup()
 	xTaskCreate(porch_lamps_control, "porch_lamps_control", 1024, NULL, 1, NULL);
 	xTaskCreate(backside_lamps_control, "backside_lamps_control", 1024, NULL, 1, NULL);
 	xTaskCreate(panic_control, "panic_control", 8192, NULL, 1, NULL);
-	xTaskCreate(guard_control, "guard_control", 8192, NULL, 1, NULL); //!
-	xTaskCreate(send_data_to_blynk, "send_data_to_blynk", 8192, NULL, 1, NULL); //!
-	xTaskCreate(run_blynk, "run_blynk", 8192, NULL, 1, NULL);
+	xTaskCreate(guard_control, "guard_control", 8192, NULL, 1, NULL);  //!
+	xTaskCreate(send_data_to_blynk, "send_data_to_blynk", 8192, NULL, 1, NULL);  //!
+	xTaskCreate(run_blynk, "run_blynk", 8192, NULL, 1, NULL);  //!
 	xTaskCreate(write_setting_to_pref, "write_setting_to_pref", 2048, NULL, 1, NULL);
 	xTaskCreate(count_heated_hours, "count_heated_hours", 2048, NULL, 1, NULL);
 	xTaskCreate(send_heated_hours_to_app, "send_heated_hours_to_app", 4096, NULL, 1, NULL);
@@ -328,6 +476,7 @@ void setup()
 	xTaskCreate(restart_if_temp_sensors_have_frozen, "restart_if_temp_sensors_have_frozen", 2048, NULL, 1, NULL);
 	xTaskCreate(open_outdoor, "open_outdoor", 4096, NULL, 1, NULL);
 	xTaskCreate(send_signal_to_gate, "send_signal_to_gate", 4096, NULL, 1, NULL);
+	xTaskCreate(handle_web_server_clients, "handle_web_server_clients", 4096, NULL, 1, NULL);
 	#pragma endregion
 
 }

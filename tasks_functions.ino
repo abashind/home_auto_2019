@@ -12,7 +12,7 @@ void get_time()
 		current_day = timeinfo.tm_mday;
 		current_month = timeinfo.tm_mon;
 		current_year = timeinfo.tm_year;
-		current_time = String(timeinfo.tm_hour) + ":" + String(timeinfo.tm_min) + ":" + String(timeinfo.tm_sec);
+		current_time = to_str<int>(timeinfo.tm_hour) + ":" + to_str<int>(timeinfo.tm_min) + ":" + to_str<int>(timeinfo.tm_sec);
 	}
 	xSemaphoreGive(wifi_mutex);
 }
@@ -52,17 +52,16 @@ void read_settings_from_pref()
 	porch_lamps_mode = pref.getInt("porch_lamps_mode");
 	invasion_detected = pref.getBool("invasion_detected");
 	mp3_number = pref.getInt("mp3_number");
-	Serial.println(String(man_mode_set_p) + ":" + String(day_set_p) + ":" + String(night_set_p) + ":" +  String(max_water_temp) + ":" +  String(min_water_temp) + ":" +  String(heating_mode));
 	xSemaphoreGive(pref_mutex);	
 }
 
-void set_led_red(WidgetLED led)
+void set_led_red(WidgetLED &led)
 {
 	led.setColor("#D3435C");
 	led.on();
 }
 
-void set_led_green(WidgetLED led)
+void set_led_green(WidgetLED &led)
 {
 	led.setColor("#23C48E");
 	led.on();
@@ -199,7 +198,7 @@ void get_temps(void *pvParameters)
 		temp_outside_sensor.requestTemperatures();
 		temp_water_sensor.requestTemperatures();
 			
-		vTaskDelay(2000 / portTICK_RATE_MS);
+		vTaskDelay(3000 / portTICK_RATE_MS);
 		
 		float _temp_inside = temp_inside_sensor.getTempCByIndex(0);
 		if (int(_temp_inside) != -127)
@@ -229,7 +228,6 @@ void restart_if_temp_sensors_have_frozen(void *pvParameters)
 		{
 			if (_temp_inside == temp_inside & _temp_outside == temp_outside & _temp_water == temp_water)
 			{
-				Serial.println("Temp sensors has been freezing for " + String(i) + " minutes...");
 				vTaskDelay(60000 / portTICK_RATE_MS);
 				if (i != 4) continue;
 			}
@@ -252,7 +250,7 @@ void get_time_task(void *pvParameters)
 	{
 		get_time();
 		
-		vTaskDelay(1000 / portTICK_RATE_MS);
+		vTaskDelay(2000 / portTICK_RATE_MS);
 	}
 }
 
@@ -273,7 +271,7 @@ void calculate_water_temp(void *pvParameters)
 				max_water_temp = 85;
 		}
 		
-		vTaskDelay(1000 / portTICK_RATE_MS);
+		vTaskDelay(30000 / portTICK_RATE_MS);
 	}
 }
 
@@ -312,9 +310,8 @@ void heating_control(void *pvParameters)
 				break;
 			}
 		}
-		vTaskDelay(1000 / portTICK_RATE_MS);
+		vTaskDelay(2000 / portTICK_RATE_MS);
 	}
-	
 }
 
 void porch_lamps_control(void *pvParameters)
@@ -335,7 +332,7 @@ void porch_lamps_control(void *pvParameters)
 			digitalWrite(porch_lamps_pin, HIGH);
 			porch_lamps_enabled = true;
 		}
-		vTaskDelay(1000 / portTICK_RATE_MS);
+		vTaskDelay(1200 / portTICK_RATE_MS);
 	}
 }
 
@@ -357,7 +354,7 @@ void backside_lamps_control(void *pvParameters)
 			digitalWrite(backside_lamps_pin, HIGH);
 			backside_lamps_enabled = true;
 		}
-		vTaskDelay(1000 / portTICK_RATE_MS);
+		vTaskDelay(1200 / portTICK_RATE_MS);
 	}
 }
 
@@ -409,7 +406,6 @@ void siren_beeps(void *pvParameters)
 
 void panic_control(void *pvParameters)
 {
-	
 	while (true)
 	{
 		//Not panic
@@ -422,7 +418,7 @@ void panic_control(void *pvParameters)
 		//Outside lamps blink, 
 		if(panic_mode == 2)
 		{
-			if ((slow_blink_handle) == NULL) xTaskCreate(lamps_blink, "lamps_blink", 10000, (void *)1000, 1, &slow_blink_handle);
+			if ((slow_blink_handle) == NULL) xTaskCreate(lamps_blink, "lamps_blink", 4096, (void *)1000, 1, &slow_blink_handle);
 			digitalWrite(siren_pin, HIGH);
 			run_mp3_player();
 		}
@@ -435,8 +431,8 @@ void panic_control(void *pvParameters)
 		//Siren beeps, outside lamps work like a strobe
 		if(panic_mode == 3)
 		{
-			if (fast_blink_handle_1 == NULL) xTaskCreate(lamps_blink, "lamps_blink", 10000, (void *)166, 1, &fast_blink_handle_1); 
-			if (beep_handle == NULL) xTaskCreate(siren_beeps, "siren_beeps", 10000, NULL, 1, &beep_handle);
+			if (fast_blink_handle_1 == NULL) xTaskCreate(lamps_blink, "lamps_blink", 4096, (void *)166, 1, &fast_blink_handle_1); 
+			if (beep_handle == NULL) xTaskCreate(siren_beeps, "siren_beeps", 4096, NULL, 1, &beep_handle);
 			run_mp3_player();
 		}
 		else 
@@ -456,7 +452,7 @@ void panic_control(void *pvParameters)
 		//Full panic.
 		if(panic_mode == 4)
 		{
-			if (fast_blink_handle_2 == NULL) xTaskCreate(lamps_blink, "lamps_blink", 10000, (void *)166, 1, &fast_blink_handle_2); 
+			if (fast_blink_handle_2 == NULL) xTaskCreate(lamps_blink, "lamps_blink", 4096, (void *)166, 1, &fast_blink_handle_2); 
 			digitalWrite(siren_pin, LOW);
 			run_mp3_player();
 		}
@@ -465,7 +461,7 @@ void panic_control(void *pvParameters)
 			vTaskDelete(fast_blink_handle_2);
 			fast_blink_handle_2 = NULL;
 		}
-		vTaskDelay(300 / portTICK_RATE_MS);
+		vTaskDelay(1000 / portTICK_RATE_MS);
 	}
 }
 
@@ -500,7 +496,7 @@ void guard_control(void *pvParameters)
 			vTaskDelay(2000 / portTICK_RATE_MS);
 		}
 		
-		vTaskDelay(50 / portTICK_RATE_MS);
+		vTaskDelay(100 / portTICK_RATE_MS);
 	}
 }
 
@@ -529,14 +525,14 @@ void send_data_to_blynk(void *pvParameters)
 			else
 				Blynk.virtualWrite(pin_backside_lamps_mode, 1);
 		}
-		Blynk.virtualWrite(pin_current_time, current_time);
+		Blynk.virtualWrite(pin_current_time, current_time.c_str());
 		Blynk.virtualWrite(pin_temp_inside, temp_inside);
 		Blynk.virtualWrite(pin_temp_water, temp_water);
 		Blynk.virtualWrite(pin_temp_outside, temp_outside);
 		
 		xSemaphoreGive(wifi_mutex);
 		
-		vTaskDelay(1000 / portTICK_RATE_MS);
+		vTaskDelay(2000 / portTICK_RATE_MS);
 	}
 }
 
@@ -547,12 +543,11 @@ void run_blynk(void *pvParameters)
 		xSemaphoreTake(wifi_mutex, portMAX_DELAY);
 		if (WiFi.status() != WL_CONNECTED) 
 		{
-			Serial.println("WiFi is not connected, try to establish connection...");
 			Blynk.connectWiFi(ssid, pass);
 		}
 		Blynk.run();
 		xSemaphoreGive(wifi_mutex);
-		vTaskDelay(500 / portTICK_RATE_MS);
+		vTaskDelay(750 / portTICK_RATE_MS);
 	}
 }
 
@@ -613,22 +608,20 @@ void count_heated_hours(void *pvParameters)
 		
 		if (heater_enabled)
 		{
-			for (auto key : heated_hours_dmy_keys)
+			for (auto &key : heated_hours_dmy_keys)
 			{
 				auto value = pref.getInt(key);
 				value++;
 				pref.putInt(key, value);
-				Serial.println(value);
 			}
 			
-			for (auto key_number : heated_hours_months_keys_numbers)
+			for (auto &key_number : heated_hours_months_keys_numbers)
 			{
 				if (current_month == key_number.second)
 				{
 					auto value = pref.getInt(key_number.first);
 					value++;
 					pref.putInt(key_number.first, value);
-					Serial.println(value);
 				}
 			}
 		}
@@ -645,28 +638,25 @@ void send_heated_hours_to_app(void *pvParameters)
 		xSemaphoreTake(wifi_mutex, portMAX_DELAY);
 		xSemaphoreTake(pref_mutex, portMAX_DELAY);
 		
-		String dmy_heated_hours;
-		
-		for (auto key : heated_hours_dmy_keys)
+		std::string dmy_heated_hours;
+		for (auto &key : heated_hours_dmy_keys)
 		{	
 			auto half_minutes = pref.getInt(key);
-			float hours = half_minutes * 0.00833;
-			dmy_heated_hours = dmy_heated_hours + String(hours) + "/";
+			auto hours = half_minutes * 0.00833;
+			dmy_heated_hours = dmy_heated_hours + to_str<float>(hours) + "/";
 		}
-		dmy_heated_hours.remove(dmy_heated_hours.length() - 1);
+		dmy_heated_hours.pop_back();
+		Blynk.virtualWrite(pin_for_dmy_heated_hours, dmy_heated_hours.c_str());
 		
-		Blynk.virtualWrite(pin_for_dmy_heated_hours, dmy_heated_hours);
-		
-		String months_heated_hours;
-		for (auto key_number : heated_hours_months_keys_numbers)
+		std::string months_heated_hours;
+		for (auto &key_number : heated_hours_months_keys_numbers)
 		{
 			auto half_minutes = pref.getInt(key_number.first);
-			float hours = half_minutes * 0.00833;
-			months_heated_hours = months_heated_hours + String(hours) + "/";
+			auto hours = half_minutes * 0.00833;
+			months_heated_hours = months_heated_hours + to_str<float>(hours) + "/";
 		}
-		months_heated_hours.remove(months_heated_hours.length() - 1);
-		
-		Blynk.virtualWrite(pin_for_months_heated_hours, months_heated_hours);
+		months_heated_hours.pop_back();
+		Blynk.virtualWrite(pin_for_months_heated_hours, months_heated_hours.c_str());
 		
 		xSemaphoreGive(pref_mutex);
 		xSemaphoreGive(wifi_mutex);
@@ -687,7 +677,9 @@ void heart_beat(void *pvParameters)
 {
 	while (true)
 	{
-		Serial.println(current_time + ". Looooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooong.");
+		Serial.println("Looooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooong.");
+		Serial.println(xPortGetFreeHeapSize());
+		Serial.println(xPortGetMinimumEverFreeHeapSize());
 		vTaskDelay(2000 / portTICK_RATE_MS);
 	}
 }
@@ -708,7 +700,7 @@ void open_outdoor(void *pvParameters)
 			xSemaphoreGive(wifi_mutex);
 		}
 			
-		vTaskDelay(100 / portTICK_RATE_MS);
+		vTaskDelay(1500 / portTICK_RATE_MS);
 	}
 }
 
@@ -728,7 +720,17 @@ void send_signal_to_gate(void *pvParameters)
 			xSemaphoreGive(wifi_mutex);
 		}
 		
-		vTaskDelay(100 / portTICK_RATE_MS);
+		vTaskDelay(1500 / portTICK_RATE_MS);
+	}
+}
+
+void handle_web_server_clients(void *pvParameters)
+{
+	while (true)
+	{
+		server.handleClient();
+		
+		vTaskDelay(1000 / portTICK_RATE_MS);
 	}
 }
 
