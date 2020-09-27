@@ -55,39 +55,6 @@ void read_settings_from_pref()
 	xSemaphoreGive(pref_mutex);	
 }
 
-void set_led_red(WidgetLED &led)
-{
-	led.setColor("#D3435C");
-	led.on();
-}
-
-void set_led_green(WidgetLED &led)
-{
-	led.setColor("#23C48E");
-	led.on();
-}
-
-void reset_all_the_alarm_leds()
-{
-		set_led_green(porch_led_alarm);
-		porch_led_alarm_is_red = false;
-
-		set_led_green(front_side_led_alarm);
-		front_side_led_alarm_is_red = false;
-	
-		set_led_green(back_side_led_alarm);
-		back_side_led_alarm_is_red = false;
-	
-		set_led_green(left_side_led_alarm);
-		left_side_led_alarm_is_red = false;
-	
-		set_led_green(right_side_led_alarm);
-		right_side_led_alarm_is_red = false;
-	
-		set_led_green(inside_led_alarm);
-		inside_led_alarm_is_red = false;
-}
-
 void send_panic_to_outdoor_esp32()
 {
 	xSemaphoreTake(wifi_mutex, portMAX_DELAY);
@@ -105,42 +72,44 @@ void detect_invasion()
 	right_side_alarm = !digitalRead(right_side_alarm_pin);
 	inside_alarm = !digitalRead(inside_alarm_pin);
 	
+	xSemaphoreTake(wifi_mutex, portMAX_DELAY);
 	//Set leds to red color.
 	if(porch_alarm && !porch_led_alarm_is_red)
 	{
-		set_led_red(porch_led_alarm);
+		Blynk.setProperty(vpin_porch_alarm, "color", BLYNK_RED);
 		porch_led_alarm_is_red = true;
 	}
 		
 	if (front_side_alarm && !front_side_led_alarm_is_red)
 	{
-		set_led_red(front_side_led_alarm);
+		Blynk.setProperty(vpin_front_side_alarm, "color", BLYNK_RED);
 		front_side_led_alarm_is_red = true;
 	}
 		
 	if (back_side_alarm && !back_side_led_alarm_is_red)
 	{
-		set_led_red(back_side_led_alarm);
+		Blynk.setProperty(vpin_back_side_alarm, "color", BLYNK_RED);
 		back_side_led_alarm_is_red = true;
 	}
 		
 	if (left_side_alarm && !left_side_led_alarm_is_red)
 	{
-		set_led_red(left_side_led_alarm);
+		Blynk.setProperty(vpin_left_side_alarm, "color", BLYNK_RED);
 		left_side_led_alarm_is_red = true;
 	}
 		
 	if (right_side_alarm && !right_side_led_alarm_is_red)
 	{
-		set_led_red(right_side_led_alarm);
+		Blynk.setProperty(vpin_right_side_alarm, "color", BLYNK_RED);
 		right_side_led_alarm_is_red = true;
 	}
 	
 	if (inside_alarm && !inside_led_alarm_is_red)
 	{
-		set_led_red(inside_led_alarm);
+		Blynk.setProperty(vpin_inside_alarm, "color", BLYNK_RED);
 		inside_led_alarm_is_red = true;
 	}
+	xSemaphoreGive(wifi_mutex);
 		
 	//Determine invasion, if it's needed.
 	if((porch_alarm && protect_porch) || 
@@ -312,7 +281,7 @@ void backside_lamps_control(void *pvParameters)
 			backside_lamps_enabled = false;
 		}
 		//Outside lamp ON
-		else if(porch_lamps_mode == 2)
+		else if(backside_lamps_mode == 2)
 		{
 			digitalWrite(backside_lamps_pin, HIGH);
 			backside_lamps_enabled = true;
@@ -632,8 +601,10 @@ void heart_beat_feed_watchdog(void *pvParameters)
 	while (true)
 	{	
 		timerWrite(timer, 0);
-		Serial.println("Looooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooong.");
+		Serial.println("***------------------------------------------------------------------------------------------------------------------------***");
+		Serial.print("Current heap size is: ");
 		Serial.println(xPortGetFreeHeapSize());
+		Serial.print("Minimum ever heap size is: ");
 		Serial.println(xPortGetMinimumEverFreeHeapSize());
 		vTaskDelay(2000 / portTICK_RATE_MS);
 	}
@@ -676,6 +647,43 @@ void send_signal_to_gate(void *pvParameters)
 		}
 		
 		vTaskDelay(1500 / portTICK_RATE_MS);
+	}
+}
+
+void reset_alarm_leds(void *pvParameters)
+{
+	while (true)
+	{
+		if (reset_alarm_leds_signal)
+		{
+			xSemaphoreTake(wifi_mutex, portMAX_DELAY);
+			Blynk.setProperty(vpin_porch_alarm, "color", BLYNK_GREEN);
+			porch_led_alarm_is_red = false;
+			vTaskDelay(300 / portTICK_RATE_MS);
+			
+			Blynk.setProperty(vpin_front_side_alarm, "color", BLYNK_GREEN);
+			front_side_led_alarm_is_red = false;
+			vTaskDelay(300 / portTICK_RATE_MS);
+			
+			Blynk.setProperty(vpin_back_side_alarm, "color", BLYNK_GREEN);
+			back_side_led_alarm_is_red = false;
+			vTaskDelay(300 / portTICK_RATE_MS);
+			
+			Blynk.setProperty(vpin_left_side_alarm, "color", BLYNK_GREEN);
+			left_side_led_alarm_is_red = false;
+			vTaskDelay(300 / portTICK_RATE_MS);
+			
+			Blynk.setProperty(vpin_right_side_alarm, "color", BLYNK_GREEN);
+			right_side_led_alarm_is_red = false;
+			vTaskDelay(300 / portTICK_RATE_MS);
+			
+			Blynk.setProperty(vpin_inside_alarm, "color", BLYNK_GREEN);
+			inside_led_alarm_is_red = false;
+			xSemaphoreGive(wifi_mutex);
+			
+			reset_alarm_leds_signal = false;
+		}
+		vTaskDelay(2000 / portTICK_RATE_MS);
 	}
 }
 

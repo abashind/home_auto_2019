@@ -109,6 +109,7 @@ int mp3_number = 1;
 
 bool mp3_player_works = false;
 
+bool reset_alarm_leds_signal = false;
 #pragma endregion
 
 #pragma region Lamps
@@ -256,15 +257,26 @@ template <typename T> std::string to_str(const T& t) {
 	return ss.str();
 }
 
+#pragma region Colours
+#define BLYNK_GREEN     "#23C48E"
+#define BLYNK_BLUE      "#04C0F8"
+#define BLYNK_YELLOW    "#ED9D00"
+#define BLYNK_RED       "#D3435C"
+#define BLYNK_DARK_BLUE "#5F7CD8"
+#pragma endregion
+
 void setup()
 {
 #pragma region PinInit
 	pinMode(heater_pin, OUTPUT);
 	digitalWrite(heater_pin, LOW);
+	
 	pinMode(porch_lamps_pin, OUTPUT);
 	digitalWrite(porch_lamps_pin, LOW);
+	
 	pinMode(siren_pin, OUTPUT);
 	digitalWrite(siren_pin, HIGH);
+	
 	pinMode(backside_lamps_pin, OUTPUT);
 	digitalWrite(backside_lamps_pin, LOW);
 	
@@ -282,30 +294,41 @@ void setup()
 #pragma endregion
 	
 	Serial.begin(9600);
+	Serial.println();
+	Serial.println();
+	Serial.println("Setup started...");
 	
+#pragma region Mp3
 	mp3_serial.begin(9600, SERIAL_8N1, mp3_serial_rx_pin, mp3_serial_tx_pin);
 	mp3_player.begin(mp3_serial);
 	mp3_player.setTimeOut(500);
 	mp3_player.volume(26);
 	mp3_player.EQ(DFPLAYER_EQ_BASS);
 	mp3_player.outputDevice(DFPLAYER_DEVICE_SD);
-
+#pragma endregion
+	
 	wifi_mutex = xSemaphoreCreateMutex();
 	pref_mutex = xSemaphoreCreateMutex();
 	
 	pref.begin("pref_1", false);
-
-	xSemaphoreTake(wifi_mutex, portMAX_DELAY);
+	read_settings_from_pref();
+	
 	Blynk.begin(auth, ssid, pass);
-	xSemaphoreGive(wifi_mutex);
 
 	configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 	delay(1000);
 	get_time();
 	
-	read_settings_from_pref();
+#pragma region Virtual Leds On
+	porch_led_alarm.on();
+	front_side_led_alarm.on();
+	back_side_led_alarm.on();
+	left_side_led_alarm.on();
+	right_side_led_alarm.on();
+	inside_led_alarm.on();
+#pragma endregion
 	
-	#pragma region TempsBegin
+	#pragma region Temps Begin
 	Wire.begin();
 	temp_inside_sensor.begin();
 	temp_outside_sensor.begin();
@@ -319,23 +342,25 @@ void setup()
 	timerAlarmEnable(timer);                           
 	#pragma endregion
 
+	Serial.println("Setup finished. Starting task cration...");
 	#pragma region TasksCreate
-	xTaskCreatePinnedToCore(get_temps, "get_temps", 2048, NULL, 2, NULL, 1);
-	xTaskCreatePinnedToCore(get_time_task, "get_time_task", 8192, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(calculate_water_temp, "calculate_water_temp", 2048, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(heating_control, "heating_control", 1024, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(porch_lamps_control, "porch_lamps_control", 1024, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(backside_lamps_control, "backside_lamps_control", 1024, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(panic_control, "panic_control", 8192, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(guard_control, "guard_control", 8192, NULL, 1, NULL, 1);  //!
-	xTaskCreatePinnedToCore(send_data_to_blynk, "send_data_to_blynk", 8192, NULL, 1, NULL, 1);  //!
-	xTaskCreatePinnedToCore(run_blynk, "run_blynk", 8192, NULL, 1, NULL, 1);  //!
-	xTaskCreatePinnedToCore(write_setting_to_pref, "write_setting_to_pref", 2048, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(count_heated_hours, "count_heated_hours", 2048, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(send_heated_hours_to_app, "send_heated_hours_to_app", 4096, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(heart_beat_feed_watchdog, "heart_beat_feed_watchdog", 1024, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(open_outdoor, "open_outdoor", 4096, NULL, 1, NULL, 1);
-	xTaskCreatePinnedToCore(send_signal_to_gate, "send_signal_to_gate", 4096, NULL, 1, NULL, 1);
+	xTaskCreate(get_time_task, "get_time_task", 8192, NULL, 1, NULL);
+	xTaskCreate(calculate_water_temp, "calculate_water_temp", 2048, NULL, 1, NULL);
+	xTaskCreate(heating_control, "heating_control", 1024, NULL, 1, NULL);
+	xTaskCreate(porch_lamps_control, "porch_lamps_control", 1024, NULL, 1, NULL);
+	xTaskCreate(backside_lamps_control, "backside_lamps_control", 1024, NULL, 1, NULL);
+	xTaskCreate(panic_control, "panic_control", 8192, NULL, 1, NULL);
+	xTaskCreate(guard_control, "guard_control", 8192, NULL, 1, NULL);
+	xTaskCreate(send_data_to_blynk, "send_data_to_blynk", 8192, NULL, 1, NULL);
+	xTaskCreate(run_blynk, "run_blynk", 8192, NULL, 1, NULL);
+	xTaskCreate(write_setting_to_pref, "write_setting_to_pref", 2048, NULL, 1, NULL);
+	xTaskCreate(count_heated_hours, "count_heated_hours", 2048, NULL, 1, NULL);
+	xTaskCreate(send_heated_hours_to_app, "send_heated_hours_to_app", 4096, NULL, 1, NULL);
+	xTaskCreate(heart_beat_feed_watchdog, "heart_beat_feed_watchdog", 1024, NULL, 1, NULL);
+	xTaskCreate(open_outdoor, "open_outdoor", 4096, NULL, 1, NULL);
+	xTaskCreate(send_signal_to_gate, "send_signal_to_gate", 4096, NULL, 1, NULL);
+	xTaskCreate(reset_alarm_leds, "reset_alarm_leds", 4096, NULL, 1, NULL);
+	xTaskCreate(get_temps, "get_temps", 2048, NULL, 2, NULL);
 	#pragma endregion
 }
 
@@ -446,7 +471,7 @@ BLYNK_WRITE(vpin_protect_inside)
 BLYNK_WRITE(vpin_reset_all_the_alarm_leds)
 {
 	if (param.asInt())
-		reset_all_the_alarm_leds();
+		reset_alarm_leds_signal = true;
 }
 
 BLYNK_WRITE(vpin_how_long_panic_lasts)
@@ -467,4 +492,7 @@ BLYNK_CONNECTED()
 
 #pragma endregion
 
-void loop(){}
+void loop()
+{
+	vTaskDelay(3600000 / portTICK_RATE_MS);
+}
