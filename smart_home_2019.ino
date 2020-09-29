@@ -168,6 +168,9 @@ WidgetBridge bridge1(V15);
 
 #define vpin_how_long_panic_lasts 34
 #define vpin_mp3_number 35
+
+#define vpin_uptime 36
+#define vpin_temp_getting_time 37
 #pragma endregion
 
 #pragma region Virtual leds
@@ -195,6 +198,8 @@ DFRobotDFPlayerMini mp3_player;
 int heating_mode = 1;
 bool heater_enabled;
 
+int temp_getting_time = 0;
+float uptime = 0;
 #pragma region Time
 std::string current_time;
 int current_hour;

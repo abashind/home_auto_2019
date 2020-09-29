@@ -169,9 +169,11 @@ void get_temps(void *pvParameters)
 		temp_outside_sensor.requestTemperatures();
 		temp_outside = temp_outside_sensor.getTempCByIndex(0);
 		
+		auto start_getting_temp = esp_timer_get_time();
 		temp_water_sensor.requestTemperatures();
 		temp_water = temp_water_sensor.getTempCByIndex(0);
-		
+		temp_getting_time = (esp_timer_get_time() - start_getting_temp)/1000;
+			
 		vTaskDelay(15000 / portTICK_RATE_MS);
 	}
 }
@@ -462,6 +464,10 @@ void send_data_to_blynk(void *pvParameters)
 		Blynk.virtualWrite(pin_temp_water, temp_water);
 		Blynk.virtualWrite(pin_temp_outside, temp_outside);
 		
+		uptime = float (millis()) / float (3600000);
+		Blynk.virtualWrite(vpin_uptime, uptime);
+		Blynk.virtualWrite(vpin_temp_getting_time, temp_getting_time);
+		
 		xSemaphoreGive(wifi_mutex);
 		
 		vTaskDelay(2000 / portTICK_RATE_MS);
@@ -574,8 +580,8 @@ void send_heated_hours_to_app(void *pvParameters)
 		for (auto &key : heated_hours_dmy_keys)
 		{	
 			auto half_minutes = pref.getInt(key);
-			auto hours = half_minutes * 0.00833;
-			dmy_heated_hours = dmy_heated_hours + to_str<float>(hours) + "/";
+			auto hours = to_str<float>(half_minutes * 0.00833).substr(0,5);
+			dmy_heated_hours = dmy_heated_hours + hours + "/";
 		}
 		dmy_heated_hours.pop_back();
 		Blynk.virtualWrite(pin_for_dmy_heated_hours, dmy_heated_hours.c_str());
@@ -584,8 +590,8 @@ void send_heated_hours_to_app(void *pvParameters)
 		for (auto &key_number : heated_hours_months_keys_numbers)
 		{
 			auto half_minutes = pref.getInt(key_number.first);
-			auto hours = half_minutes * 0.00833;
-			months_heated_hours = months_heated_hours + to_str<float>(hours) + "/";
+			auto hours = to_str<int>(int(half_minutes * 0.00833));
+			months_heated_hours = months_heated_hours + hours + "/";
 		}
 		months_heated_hours.pop_back();
 		Blynk.virtualWrite(pin_for_months_heated_hours, months_heated_hours.c_str());
@@ -606,6 +612,8 @@ void heart_beat_feed_watchdog(void *pvParameters)
 		Serial.println(xPortGetFreeHeapSize());
 		Serial.print("Minimum ever heap size is: ");
 		Serial.println(xPortGetMinimumEverFreeHeapSize());
+		Serial.print("Uptime: ");
+		Serial.println(uptime);
 		vTaskDelay(2000 / portTICK_RATE_MS);
 	}
 }
