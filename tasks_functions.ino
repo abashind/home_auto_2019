@@ -19,6 +19,8 @@ void get_time()
 
 void warm_cool(float setPoint)
 {
+	if (temp_inside == -127 || temp_water == -127) return;
+	
 	bool too_cold = temp_inside <= setPoint - half_inside_dzone;
 	bool water_not_max = temp_water < max_water_temp - half_water_dzone;
 	bool water_too_cold = temp_water < min_water_temp - half_water_dzone;
@@ -26,9 +28,7 @@ void warm_cool(float setPoint)
 	bool too_warm = temp_inside >= setPoint + half_inside_dzone;
 	bool water_too_hoot = temp_water >= max_water_temp + half_water_dzone;
 	
-	if (temp_inside == -127 || temp_water == -127)
-		return;
-	else if ((too_cold && water_not_max) || water_too_cold)
+	if ((too_cold && water_not_max) || water_too_cold)
 	{
 		digitalWrite(heater_pin, HIGH);
 		heater_enabled = true; 
